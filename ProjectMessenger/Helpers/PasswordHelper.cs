@@ -12,13 +12,32 @@ namespace ProjectMessenger.Helpers
         // Эти параметры можно вынести в appsettings.json
         private const int SaltSize = 16; // 128 bit
         private const int KeySize = 32;  // 256 bit
-        private const int Iterations = 100000; // Рекомендуемое кол-во итераций для PBKDF2-SHA256
+        //private const int Iterations = 100000; // Рекомендуемое кол-во итераций для PBKDF2-SHA256
         private static readonly HashAlgorithmName _hashAlgorithm = HashAlgorithmName.SHA256;
+
+        private const int MinIterations = 100000;
+        private const int MaxIterations = 120000;
+
+        private static int GetRandomIterations()
+        {
+            // Используем криптографически безопасный генератор случайных чисел
+            using (var rng = RandomNumberGenerator.Create())
+            {
+                byte[] bytes = new byte[4];
+                rng.GetBytes(bytes);
+                int randomValue = BitConverter.ToInt32(bytes, 0);
+
+                // Ограничиваем случайное число безопасным диапазоном
+                return Math.Abs(randomValue % (MaxIterations - MinIterations + 1)) + MinIterations;
+            }
+        }
 
         public static (byte[] hash, byte[] salt, int iterations) HashPassword(string password)
         {
             // 1. Генерируем "соль"
             byte[] salt = RandomNumberGenerator.GetBytes(SaltSize);
+
+            int Iterations = GetRandomIterations();
 
             // 2. Генерируем хэш с помощью PBKDF2
             var hash = new Rfc2898DeriveBytes(

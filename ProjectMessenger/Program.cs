@@ -58,17 +58,17 @@ namespace ProjectMessenger
 
             // Применяем миграции (создаем/обновляем БД) при старте
             // В реальном приложении это лучше делать отдельно
-            try 
-            { 
-                AssureDatabaseCreated(serviceProvider);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"DB connection error: {ex.Message}");
-                return;
-            }
+            //try 
+            //{ 
+            //    AssureDatabaseCreated(serviceProvider);
+            //}
+            //catch (Exception ex)
+            //{
+            //    Console.WriteLine($"DB connection error: {ex.Message}");
+            //    return;
+            //}
 
-            TcpListener listener = null;
+            TcpListener ?listener = null;
             
             try
             {
@@ -98,16 +98,16 @@ namespace ProjectMessenger
             }
         }
 
-        private static void AssureDatabaseCreated(IServiceProvider serviceProvider)
-        {
-            using (var scope = serviceProvider.CreateScope())
-            {
-                var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                // dbContext.Database.EnsureCreated(); // Создает БД, но не позволяет использовать миграции
-                dbContext.Database.Migrate(); // Применяет существующие миграции
-                Console.WriteLine("Database connection successful and migrations applied.");
-            }
-        }
+        //private static void AssureDatabaseCreated(IServiceProvider serviceProvider)
+        //{
+        //    using (var scope = serviceProvider.CreateScope())
+        //    {
+        //        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        //        // dbContext.Database.EnsureCreated(); // Создает БД, но не позволяет использовать миграции
+        //        dbContext.Database.Migrate(); // Применяет существующие миграции
+        //        Console.WriteLine("Database connection successful and migrations applied.");
+        //    }
+        //}
 
         private static async Task HandleClientAsync(TcpClient client, IServiceProvider serviceProvider)
         {
@@ -122,7 +122,7 @@ namespace ProjectMessenger
                 _activeClients.TryAdd(clientKey, session);
 
                 Console.WriteLine($"*** CLIENT CONNECTED: {clientKey} ***");
-
+                
                 using StreamReader reader = new StreamReader(session.Stream, Encoding.UTF8);
 
                 while (client.Connected && !reader.EndOfStream)
@@ -222,7 +222,7 @@ namespace ProjectMessenger
             {
                 return command switch
                 {
-                    "registration_data" => await RegisterUserAsync(parts.Skip(1).ToArray(), serviceProvider),
+                    "registration_data" => await RegisterUserAsync(parts.Skip(1).ToArray(), serviceProvider, session),
                     "login_data" => await LoginUserAsync(parts.Skip(1).ToArray(), serviceProvider, session),
                     "message_data" => await HandleMessageAsync(parts.Skip(1).ToArray(), session),
                     _ => "ERROR;UNKNOWN_COMMAND"
@@ -235,7 +235,7 @@ namespace ProjectMessenger
             }
         }
 
-        private static async Task<string> RegisterUserAsync(string[] args, IServiceProvider serviceProvider)
+        private static async Task<string> RegisterUserAsync(string[] args, IServiceProvider serviceProvider, ClientSession session)
         {
             // Ожидаемый формат: username ; email ; password ; birthday
             if (args.Length != 4) return "ERROR;REG_FAILED;MISSING_DATA";
@@ -276,6 +276,8 @@ namespace ProjectMessenger
 
                 dbContext.Users.Add(user);
                 await dbContext.SaveChangesAsync();
+
+                session.LoggedInEmail = user.Email;
 
                 return "SUCCESS;REG_OK";
             }
