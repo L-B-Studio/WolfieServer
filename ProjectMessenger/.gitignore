@@ -1,0 +1,3 @@
+﻿# Игнорировать appsettings
+appsettings.json
+appsettings.*.json
