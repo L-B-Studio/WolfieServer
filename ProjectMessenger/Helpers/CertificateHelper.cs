@@ -1,6 +1,7 @@
 ﻿using System.Net;
 using System.Security.Cryptography.X509Certificates;
 using System.Security.Cryptography;
+using System.Runtime.InteropServices;
 
 namespace ProjectMessenger.Helpers
 {
@@ -9,11 +10,13 @@ namespace ProjectMessenger.Helpers
         private const string PfxFile = "server.pfx"; // самоподписанный сертификат
         private const string CerFile = "server.cer";
 
+
         public static X509Certificate2 GetOrCreateCertificate()
         {
-            string baseDir = AppContext.BaseDirectory;
-            Path.Combine(baseDir, PfxFile);
-            string pfxPassword;
+            string pfxPath = Path.Combine(AppContext.BaseDirectory, PfxFile);
+            string cerPath = Path.Combine(AppContext.BaseDirectory, CerFile);
+
+            string? pfxPassword;
             try
             {
                 pfxPassword = CertPasswordManager.LoadPassword();
@@ -26,22 +29,38 @@ namespace ProjectMessenger.Helpers
             }
 
             // 2️⃣ Если ничего нет — создаём самоподписанный
-            if (!File.Exists(PfxFile))
+            if (!File.Exists(pfxPath))
             {
                 Console.WriteLine("Generating a self-signed certificate...");
                 var cert = CreateSelfSignedCertificate("CN=MyTestServer");
                 var bytes = cert.Export(X509ContentType.Pfx, pfxPassword);
-                File.WriteAllBytes(PfxFile, bytes);
-                if (!File.Exists(CerFile))
+                File.WriteAllBytes(pfxPath, bytes);
+                if (!File.Exists(cerPath))
                 {
                     Console.WriteLine("Generating a public key...");
-                    File.WriteAllBytes(CerFile, cert.Export(X509ContentType.Cert));
+                    File.WriteAllBytes(cerPath, cert.Export(X509ContentType.Cert));
                 }
                 Console.WriteLine($"The self-signed certificate is saved in {PfxFile}");
             }
 
+            var flags = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? X509KeyStorageFlags.MachineKeySet : X509KeyStorageFlags.EphemeralKeySet;
 
-            return new X509Certificate2(PfxFile, pfxPassword, X509KeyStorageFlags.MachineKeySet);
+            while (true)
+            {
+                try
+                {
+                    return new X509Certificate2(pfxPath, pfxPassword, flags);
+                }
+                catch (CryptographicException)
+                {
+                    Console.WriteLine("Invalid certificate password. Please re-enter the password.");
+                    Console.Write("Enter a new password for the certificate: ");
+
+                    pfxPassword = Console.ReadLine();
+
+                    CertPasswordManager.SavePassword(pfxPassword);
+                }
+            }
         }
 
         private static X509Certificate2 CreateSelfSignedCertificate(string subjectName)

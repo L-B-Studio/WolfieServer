@@ -9,6 +9,7 @@ namespace ProjectMessenger.Model
     public class User
     {
         public int Id { get; set; }              // PK
+        public Guid PublicId { get; set; } = Guid.NewGuid();
         public string Email { get; set; } = null!;
         public string Name { get; set; } = null!;
 

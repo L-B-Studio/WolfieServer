@@ -8,7 +8,7 @@ namespace ProjectMessenger.Model
 {
     public class JsonPackage
     {
-        public string header { get; set; }
-        public Dictionary<string, string> body { get; set; }
+        public string header { get; set; } = null!;
+        public Dictionary<string, string> body { get; set; } = null!;
     }
 }

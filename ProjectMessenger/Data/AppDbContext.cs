@@ -18,11 +18,11 @@ namespace ProjectMessenger.Data
             base.OnModelCreating(modelBuilder);
 
             modelBuilder.Entity<User>()
-                .Property(u => u.Id)
-                .UseIdentityColumn(seed: 10000, increment: 1);
+                .HasIndex(u => u.Email)
+                .IsUnique();
 
             modelBuilder.Entity<User>()
-                .HasIndex(u => u.Email)
+                .HasIndex(u => u.PublicId)
                 .IsUnique();
 
             modelBuilder.Entity<PasswordResetToken>()

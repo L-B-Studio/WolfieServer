@@ -361,3 +361,17 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Игнорировать appsettings
+appsettings.json
+appsettings.*.json
+
+#Игнорировать server
+server.pfx
+server.*.pfx
+server.cer
+server.*.cer
+
+#Игнорировать pfx_pwd
+pfx_pwd.bin
+pfx_pwd.*.bin
