@@ -1,0 +1,14 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace ProjectMessengerServer.Model
+{
+    public class JsonPackage
+    {
+        public string header { get; set; } = null!;
+        public Dictionary<string, string> body { get; set; } = null!;
+    }
+}
