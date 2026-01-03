@@ -1,28 +1,12 @@
-﻿using System;
-using System.Net.Sockets;
-using System.Net;
+﻿using System.Net;
 using System.Text;
 using System.Text.Json;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.EntityFrameworkCore;
 using ProjectMessengerServer.Data;
 using ProjectMessengerServer.Model;
 using ProjectMessengerServer.Helpers;
-using System.Collections.Concurrent;
 using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
-using System.Net.Security;
 using System.Net.Mail;
-using Microsoft.AspNetCore.Mvc.ApplicationParts;
-using System.Reflection;
-using Microsoft.AspNetCore.Identity.Data;
-using Microsoft.AspNetCore.Http;
-using static System.Runtime.InteropServices.JavaScript.JSType;
-using static System.Collections.Specialized.BitVector32;
-using System.Net.Http;
-using Microsoft.AspNetCore.Hosting.Server;
-using static System.Formats.Asn1.AsnWriter;
 
 namespace ProjectMessengerServer
 {
@@ -108,35 +92,32 @@ namespace ProjectMessengerServer
                 .Build();
 
 
-            var services = new ServiceCollection();
 
 
             AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 
-            services.AddDbContext<AppDbContext>(options =>
-                options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
+            //services.AddDbContext<AppDbContext>(options =>
+            //    options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
 
+            var builder = WebApplication.CreateBuilder(args);
 
+            // добавляем DbContext сразу в DI приложения
+            builder.Services.AddDbContext<AppDbContext>(options =>
+                options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
             // Собираем сервис-провайдер
-            var serviceProvider = services.BuildServiceProvider();
+            //var serviceProvider = new ServiceCollection().BuildServiceProvider();
 
             try
             {
-                using (var scope = serviceProvider.CreateScope())
-                {
-                    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                    // Это и создаст БД (если она не существует), и применит миграции.
-                    context.Database.Migrate();
-                }
+                using var scope = builder.Services.BuildServiceProvider().CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                dbContext.Database.Migrate();
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"DB connection or migration error: {ex.Message}");
-                // Крайне важно остановить сервер, если БД недоступна или миграция провалилась.
                 return;
             }
-
-            var builder = WebApplication.CreateBuilder(args);
 
             builder.WebHost.ConfigureKestrel(options =>
             {
@@ -150,6 +131,9 @@ namespace ProjectMessengerServer
             });
 
             var app = builder.Build();
+
+            app.UseMiddleware<RequestLoggingMiddlewareHelper>();
+            app.UseMiddleware<ResponseLoggingMiddlewareHelper>();
 
             app.MapPost("/auth/registration", async (RegistrationRequest req, HttpContext httpContext) =>
             {
@@ -185,7 +169,7 @@ namespace ProjectMessengerServer
                 string hashRefreshToken;
 
                 //
-                using (var scope = serviceProvider.CreateScope())
+                using var scope = builder.Services.BuildServiceProvider().CreateScope();
                 {
                     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
@@ -284,7 +268,7 @@ namespace ProjectMessengerServer
                 string hashRefreshToken;
 
                 //
-                using (var scope = serviceProvider.CreateScope())
+                using var scope = builder.Services.BuildServiceProvider().CreateScope();
                 {
                     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
@@ -387,7 +371,7 @@ namespace ProjectMessengerServer
 
                 //
                 var refreshTokenHash = TokenHelper.HashToken(refreshTokenSession);
-                using (var scope = serviceProvider.CreateScope())
+                using var scope = builder.Services.BuildServiceProvider().CreateScope();
                 {
                     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                     var refreshToken = await dbContext.RefreshTokens
@@ -460,7 +444,7 @@ namespace ProjectMessengerServer
                 ));
             });
 
-            app.MapPost("/auth/forgotpass", async (ForgotPassRequest req, HttpContext httpContext) =>
+            app.MapPost("/auth/password/forgot", async (ForgotPassRequest req, HttpContext httpContext) =>
             {
 
                 //data.TryGetValue("email", out string? email);
@@ -483,7 +467,7 @@ namespace ProjectMessengerServer
                 string hashRefreshToken;
 
                 //
-                using (var scope = serviceProvider.CreateScope())
+                using var scope = builder.Services.BuildServiceProvider().CreateScope();
                 {
                     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                     var user = await dbContext.Users.FirstOrDefaultAsync(u => u.Email == email);
@@ -514,8 +498,6 @@ namespace ProjectMessengerServer
 
                     string codeString = new string(code);
 
-                    Console.WriteLine($"Generated confirmation code: {codeString} for email: {email}");
-
                     var message = new MailMessage();
                     message.To.Add(email);
                     message.Subject = "Код подтверждения";
@@ -527,7 +509,6 @@ namespace ProjectMessengerServer
                         var configContent = File.ReadAllText("appsettings.json");
                         var configJson = JsonDocument.Parse(configContent);
                         var gmailHost = configJson.RootElement.GetProperty("Gmail").GetProperty("Host").GetString();
-                        Console.WriteLine($"Gmail Host from config: {gmailHost}");
                     }
                     catch (Exception ex)
                     {
@@ -592,7 +573,7 @@ namespace ProjectMessengerServer
                 return Results.NoContent();
             });
 
-            app.MapPost("/auth/forgotpass_verify", async (ForgotpassVerifyRequest req, HttpContext httpContext) =>
+            app.MapPost("/auth/password/verify", async (ForgotpassVerifyRequest req, HttpContext httpContext) =>
             {
 
 
@@ -613,7 +594,7 @@ namespace ProjectMessengerServer
                 string hashTokenReset;
 
                 //
-                using (var scope = serviceProvider.CreateScope())
+                using var scope = builder.Services.BuildServiceProvider().CreateScope();
                 {
                     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
                     var user = await dbContext.Users.FirstOrDefaultAsync(u => u.Email == email);
@@ -681,7 +662,7 @@ namespace ProjectMessengerServer
                 ));
             });
 
-            app.MapPost("/auth/changedpass", async (ChangedpassRequest req, HttpContext httpContext) =>
+            app.MapPost("/auth/password/change", async (ChangedpassRequest req, HttpContext httpContext) =>
             {
 
                 //data.TryGetValue("token_reset", out string token);
@@ -699,7 +680,7 @@ namespace ProjectMessengerServer
                 //
                 var tokenResetHash = TokenHelper.HashToken(token);
 
-                using (var scope = serviceProvider.CreateScope())
+                using var scope = builder.Services.BuildServiceProvider().CreateScope();
                 {
                     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
@@ -726,6 +707,60 @@ namespace ProjectMessengerServer
 
                 return Results.NoContent();
             });
+
+            app.MapGet("/logs", async (HttpContext httpContext) =>
+            {
+                // 1. Берём токен из заголовка
+                var auth = httpContext.Request.Headers["Authorization"].ToString();
+                if (!auth.StartsWith("Bearer "))
+                    return Results.Unauthorized();
+
+                var token = auth["Bearer ".Length..];
+
+                // 2. Хешируем токен (никогда не храним чистый)
+                var tokenHash = TokenHelper.HashToken(token);
+
+                using var scope = builder.Services.BuildServiceProvider().CreateScope();
+                {
+                    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+                    // 3. Ищем токен в БД
+                    var accessToken = await dbContext.AccessTokens
+                        .Include(t => t.User)
+                        .FirstOrDefaultAsync(t =>
+                            t.AccessTokenHash == tokenHash &&
+                            !t.Revoked &&
+                            t.ExpiresAt > DateTime.UtcNow);
+
+                    if (accessToken == null)
+                        return Results.Unauthorized();
+
+                    // 4. Проверка прав
+                    if (accessToken.User.Status != "logger" && accessToken.User.Status != "developer")
+                    {
+                        return Results.StatusCode(403);
+                    }
+
+                    var query = httpContext.Request.Query;
+                    int limit = 20;
+                    int offset = 0;
+
+                    if (query.ContainsKey("limit") && int.TryParse(query["limit"], out int parsedLimit))
+                        limit = Math.Min(parsedLimit, 100); // ограничение на максимум
+
+                    if (query.ContainsKey("offset") && int.TryParse(query["offset"], out int parsedOffset))
+                        offset = Math.Max(parsedOffset, 0);
+
+                    //if (limit < offset)
+                    //    return Results.BadRequest();
+
+                    var logs = LogsHelper.GetLogs(dbContext, offset, limit);
+
+                    return Results.Ok(logs);
+                }
+            });
+
+            app.MapGet("/ping", () => "pong");
 
             Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine($"{DateTime.Now.ToString("HH:mm:ss")} *** SERVER START WORKING on {_serverIp}:{_port} ***");

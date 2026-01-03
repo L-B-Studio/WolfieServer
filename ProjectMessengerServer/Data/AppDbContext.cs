@@ -10,6 +10,7 @@ namespace ProjectMessengerServer.Data
         public DbSet<PasswordResetTokenReset> PasswordResetTokenResets { get; set; } = null!;
         public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
         public DbSet<AccessToken> AccessTokens { get; set; } = null!;
+        public DbSet<Log> Logs { get; set; } = null!;
 
         public AppDbContext(DbContextOptions<AppDbContext> options)
             : base(options)
