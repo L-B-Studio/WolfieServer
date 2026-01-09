@@ -15,7 +15,6 @@ namespace ProjectMessengerServer.Model
         public DateTime ExpiresAt { get; set; }         // Время жизни токена
         public DateTime CreatedAt { get; set; }
         public bool Used { get; set; }                  // Был ли token использован
-        public string DeviceInfo { get; set; } = null!; // Информация об устройстве которому был выдан токен
         public string IpAddress { get; set; } = null!;
         public bool Revoked { get; set; } // Был ли токен отозван
     }

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ProjectMessengerServer.Data;
@@ -11,9 +12,11 @@ using ProjectMessengerServer.Data;
 namespace ProjectMessengerServer.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260107014651_ChangeLogicOfChat1.0")]
+    partial class ChangeLogicOfChat10
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -106,7 +109,7 @@ namespace ProjectMessengerServer.Migrations
                     b.Property<DateTime>("JoinedAt")
                         .HasColumnType("timestamp without time zone");
 
-                    b.Property<int?>("LastReadMessageId")
+                    b.Property<int>("LastReadMessageId")
                         .HasColumnType("integer");
 
                     b.Property<int>("Role")
@@ -507,7 +510,8 @@ namespace ProjectMessengerServer.Migrations
                     b.HasOne("ProjectMessengerServer.Model.Message", "LastReadMessage")
                         .WithMany()
                         .HasForeignKey("LastReadMessageId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.SetNull)
+                        .IsRequired();
 
                     b.HasOne("ProjectMessengerServer.Model.User", "User")
                         .WithMany("ChatMembers")

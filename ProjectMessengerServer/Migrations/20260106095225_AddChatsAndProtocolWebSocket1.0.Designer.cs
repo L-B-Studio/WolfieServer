@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ProjectMessengerServer.Data;
@@ -11,9 +12,11 @@ using ProjectMessengerServer.Data;
 namespace ProjectMessengerServer.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260106095225_AddChatsAndProtocolWebSocket1.0")]
+    partial class AddChatsAndProtocolWebSocket10
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -70,9 +73,6 @@ namespace ProjectMessengerServer.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("text");
 
-                    b.Property<int?>("LastMessageId")
-                        .HasColumnType("integer");
-
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text");
@@ -87,8 +87,6 @@ namespace ProjectMessengerServer.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("LastMessageId");
-
                     b.HasIndex("Uid")
                         .IsUnique();
 
@@ -97,26 +95,35 @@ namespace ProjectMessengerServer.Migrations
 
             modelBuilder.Entity("ProjectMessengerServer.Model.ChatMember", b =>
                 {
-                    b.Property<int>("ChatId")
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("integer");
 
-                    b.Property<int>("UserId")
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ChatId")
                         .HasColumnType("integer");
 
                     b.Property<DateTime>("JoinedAt")
                         .HasColumnType("timestamp without time zone");
 
-                    b.Property<int?>("LastReadMessageId")
+                    b.Property<string>("LastReadMessageId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("UserId")
                         .HasColumnType("integer");
 
-                    b.Property<int>("Role")
-                        .HasColumnType("integer");
+                    b.HasKey("Id");
 
-                    b.HasKey("ChatId", "UserId");
+                    b.HasIndex("ChatId");
 
-                    b.HasIndex("LastReadMessageId");
-
-                    b.HasIndex("UserId");
+                    b.HasIndex("UserId")
+                        .IsUnique();
 
                     b.ToTable("ChatMembers");
                 });
@@ -186,6 +193,9 @@ namespace ProjectMessengerServer.Migrations
                     b.Property<int>("ChatId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("ChatId1")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp without time zone");
 
@@ -198,9 +208,14 @@ namespace ProjectMessengerServer.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("ChatId");
+                    b.HasIndex("ChatId")
+                        .IsUnique();
 
-                    b.HasIndex("SenderId");
+                    b.HasIndex("ChatId1")
+                        .IsUnique();
+
+                    b.HasIndex("SenderId")
+                        .IsUnique();
 
                     b.ToTable("Messages");
                 });
@@ -486,16 +501,6 @@ namespace ProjectMessengerServer.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("ProjectMessengerServer.Model.Chat", b =>
-                {
-                    b.HasOne("ProjectMessengerServer.Model.Message", "LastMessage")
-                        .WithMany()
-                        .HasForeignKey("LastMessageId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("LastMessage");
-                });
-
             modelBuilder.Entity("ProjectMessengerServer.Model.ChatMember", b =>
                 {
                     b.HasOne("ProjectMessengerServer.Model.Chat", "Chat")
@@ -504,20 +509,13 @@ namespace ProjectMessengerServer.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("ProjectMessengerServer.Model.Message", "LastReadMessage")
-                        .WithMany()
-                        .HasForeignKey("LastReadMessageId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("ProjectMessengerServer.Model.User", "User")
-                        .WithMany("ChatMembers")
-                        .HasForeignKey("UserId")
+                        .WithOne()
+                        .HasForeignKey("ProjectMessengerServer.Model.ChatMember", "UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Chat");
-
-                    b.Navigation("LastReadMessage");
 
                     b.Navigation("User");
                 });
@@ -536,14 +534,18 @@ namespace ProjectMessengerServer.Migrations
             modelBuilder.Entity("ProjectMessengerServer.Model.Message", b =>
                 {
                     b.HasOne("ProjectMessengerServer.Model.Chat", "Chat")
-                        .WithMany("Messages")
-                        .HasForeignKey("ChatId")
+                        .WithOne()
+                        .HasForeignKey("ProjectMessengerServer.Model.Message", "ChatId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("ProjectMessengerServer.Model.Chat", null)
+                        .WithOne("LastMessage")
+                        .HasForeignKey("ProjectMessengerServer.Model.Message", "ChatId1");
+
                     b.HasOne("ProjectMessengerServer.Model.User", "Sender")
-                        .WithMany()
-                        .HasForeignKey("SenderId")
+                        .WithOne()
+                        .HasForeignKey("ProjectMessengerServer.Model.Message", "SenderId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -642,14 +644,9 @@ namespace ProjectMessengerServer.Migrations
 
             modelBuilder.Entity("ProjectMessengerServer.Model.Chat", b =>
                 {
+                    b.Navigation("LastMessage");
+
                     b.Navigation("Members");
-
-                    b.Navigation("Messages");
-                });
-
-            modelBuilder.Entity("ProjectMessengerServer.Model.User", b =>
-                {
-                    b.Navigation("ChatMembers");
                 });
 #pragma warning restore 612, 618
         }

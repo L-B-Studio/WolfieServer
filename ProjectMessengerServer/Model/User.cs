@@ -8,19 +8,16 @@ namespace ProjectMessengerServer.Model
 {
     public class User
     {
-        public int Id { get; set; }              // PK
-        public Guid PublicId { get; set; } = Guid.NewGuid();
+        public int Id { get; set; }
         public string Email { get; set; } = null!;
-        public string Name { get; set; } = null!;
-        public string? Status { get; set; } // Статус пользователя (например Logger_status или Developer_status)
+        public string? Status { get; set; } = null!;
 
-        // Добавляем дату рожденияS
-        public DateTime Birthday { get; set; }
-
-        // Безопасное хранение пароля:
         public byte[] PasswordHash { get; set; } = null!;
         public byte[] PasswordSalt { get; set; } = null!;
-        public int HashIterations { get; set; }    // сохраняем число итераций
+        public int HashIterations { get; set; }
         public DateTime CreatedAt { get; set; }
+        public bool IsBlocked { get; set; }
+        public DateTime LastLoginAt { get; set; }
+        public ICollection<ChatMember>? ChatMembers { get; set; } = null!;
     }
 }

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using ProjectMessengerServer.Data;
@@ -11,9 +12,11 @@ using ProjectMessengerServer.Data;
 namespace ProjectMessengerServer.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260105230651_ChangeDataBaseUserLogic1.1")]
+    partial class ChangeDataBaseUserLogic11
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -56,71 +59,6 @@ namespace ProjectMessengerServer.Migrations
                     b.ToTable("AccessTokens");
                 });
 
-            modelBuilder.Entity("ProjectMessengerServer.Model.Chat", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("text");
-
-                    b.Property<int?>("LastMessageId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Type")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Uid")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("LastMessageId");
-
-                    b.HasIndex("Uid")
-                        .IsUnique();
-
-                    b.ToTable("Chats");
-                });
-
-            modelBuilder.Entity("ProjectMessengerServer.Model.ChatMember", b =>
-                {
-                    b.Property<int>("ChatId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("JoinedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<int?>("LastReadMessageId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("Role")
-                        .HasColumnType("integer");
-
-                    b.HasKey("ChatId", "UserId");
-
-                    b.HasIndex("LastReadMessageId");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("ChatMembers");
-                });
-
             modelBuilder.Entity("ProjectMessengerServer.Model.ForgotPassDevice", b =>
                 {
                     b.Property<int>("Id")
@@ -130,15 +68,18 @@ namespace ProjectMessengerServer.Migrations
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<string>("DeviceId")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("DeviceType")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<DateTime>("LastActive")
                         .HasColumnType("timestamp without time zone");
 
                     b.Property<string>("PlaceAuthorization")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<int>("UserId")
@@ -173,36 +114,6 @@ namespace ProjectMessengerServer.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Logs");
-                });
-
-            modelBuilder.Entity("ProjectMessengerServer.Model.Message", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("ChatId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp without time zone");
-
-                    b.Property<int>("SenderId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Text")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ChatId");
-
-                    b.HasIndex("SenderId");
-
-                    b.ToTable("Messages");
                 });
 
             modelBuilder.Entity("ProjectMessengerServer.Model.PasswordResetToken", b =>
@@ -373,15 +284,18 @@ namespace ProjectMessengerServer.Migrations
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
                     b.Property<string>("DeviceId")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("DeviceType")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<DateTime>("LastActive")
                         .HasColumnType("timestamp without time zone");
 
                     b.Property<string>("PlaceAuthorization")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<int>("UserId")
@@ -419,9 +333,11 @@ namespace ProjectMessengerServer.Migrations
                         .HasColumnType("integer");
 
                     b.Property<string>("AvatarUrl")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("Bio")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<DateTime>("Birthday")
@@ -432,6 +348,7 @@ namespace ProjectMessengerServer.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("PhoneNumber")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<string>("PublicId")
@@ -443,19 +360,6 @@ namespace ProjectMessengerServer.Migrations
                     b.ToTable("UserProfiles");
                 });
 
-            modelBuilder.Entity("ProjectMessengerServer.Model.UserSequence", b =>
-                {
-                    b.Property<int>("UserId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("LastSeq")
-                        .HasColumnType("integer");
-
-                    b.HasKey("UserId");
-
-                    b.ToTable("UserSequences");
-                });
-
             modelBuilder.Entity("ProjectMessengerServer.Model.UserSettings", b =>
                 {
                     b.Property<int>("UserId")
@@ -465,6 +369,7 @@ namespace ProjectMessengerServer.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<string>("Language")
+                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool>("NotificationsEnabled")
@@ -486,42 +391,6 @@ namespace ProjectMessengerServer.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("ProjectMessengerServer.Model.Chat", b =>
-                {
-                    b.HasOne("ProjectMessengerServer.Model.Message", "LastMessage")
-                        .WithMany()
-                        .HasForeignKey("LastMessageId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("LastMessage");
-                });
-
-            modelBuilder.Entity("ProjectMessengerServer.Model.ChatMember", b =>
-                {
-                    b.HasOne("ProjectMessengerServer.Model.Chat", "Chat")
-                        .WithMany("Members")
-                        .HasForeignKey("ChatId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ProjectMessengerServer.Model.Message", "LastReadMessage")
-                        .WithMany()
-                        .HasForeignKey("LastReadMessageId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("ProjectMessengerServer.Model.User", "User")
-                        .WithMany("ChatMembers")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Chat");
-
-                    b.Navigation("LastReadMessage");
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("ProjectMessengerServer.Model.ForgotPassDevice", b =>
                 {
                     b.HasOne("ProjectMessengerServer.Model.User", "User")
@@ -531,25 +400,6 @@ namespace ProjectMessengerServer.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("ProjectMessengerServer.Model.Message", b =>
-                {
-                    b.HasOne("ProjectMessengerServer.Model.Chat", "Chat")
-                        .WithMany("Messages")
-                        .HasForeignKey("ChatId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("ProjectMessengerServer.Model.User", "Sender")
-                        .WithMany()
-                        .HasForeignKey("SenderId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Chat");
-
-                    b.Navigation("Sender");
                 });
 
             modelBuilder.Entity("ProjectMessengerServer.Model.PasswordResetToken", b =>
@@ -618,17 +468,6 @@ namespace ProjectMessengerServer.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("ProjectMessengerServer.Model.UserSequence", b =>
-                {
-                    b.HasOne("ProjectMessengerServer.Model.User", "User")
-                        .WithOne()
-                        .HasForeignKey("ProjectMessengerServer.Model.UserSequence", "UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("ProjectMessengerServer.Model.UserSettings", b =>
                 {
                     b.HasOne("ProjectMessengerServer.Model.User", "User")
@@ -638,18 +477,6 @@ namespace ProjectMessengerServer.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("ProjectMessengerServer.Model.Chat", b =>
-                {
-                    b.Navigation("Members");
-
-                    b.Navigation("Messages");
-                });
-
-            modelBuilder.Entity("ProjectMessengerServer.Model.User", b =>
-                {
-                    b.Navigation("ChatMembers");
                 });
 #pragma warning restore 612, 618
         }

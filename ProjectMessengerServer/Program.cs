@@ -7,6 +7,13 @@ using ProjectMessengerServer.Model;
 using ProjectMessengerServer.Helpers;
 using System.Security.Cryptography;
 using System.Net.Mail;
+using System.Net.WebSockets;
+using static System.Formats.Asn1.AsnWriter;
+using System.Collections.Generic;
+using System.Diagnostics.Metrics;
+using static System.Runtime.InteropServices.JavaScript.JSType;
+using System.Data;
+using static ProjectMessengerServer.Model.ChatMember;
 
 namespace ProjectMessengerServer
 {
@@ -132,6 +139,9 @@ namespace ProjectMessengerServer
 
             var app = builder.Build();
 
+
+            app.UseWebSockets();
+
             app.UseMiddleware<RequestLoggingMiddlewareHelper>();
             app.UseMiddleware<ResponseLoggingMiddlewareHelper>();
 
@@ -148,7 +158,9 @@ namespace ProjectMessengerServer
                 string email = req.Email;
                 string password = req.Password;
                 string birthdayString = req.Birthday;
-                string? deviceInfo = req.Device_info;
+                string? deviceId = req.Device_id;
+                string? deviceType = req.Device_type;
+                string? placeAuthorization = req.Place_authorization;
 
                 if (string.IsNullOrWhiteSpace(name) ||
                     string.IsNullOrWhiteSpace(email) ||
@@ -184,18 +196,59 @@ namespace ProjectMessengerServer
 
                     var user = new User
                     {
-                        Name = name,
                         Email = email,
-                        Birthday = birthday, // <-- Теперь сохраняем Birthday
                         PasswordHash = hash,
                         PasswordSalt = salt,
                         HashIterations = iterations,
                         CreatedAt = DateTime.UtcNow
                     };
 
+
+                    var userDevice = new UserDevice
+                    {
+                        User = user,
+                        DeviceId = deviceId ?? null,
+                        DeviceType = deviceType ?? null,
+                        PlaceAuthorization = placeAuthorization ?? null,
+                        LastActive = DateTime.UtcNow
+                    };
+
+                    var userSetting = new UserSettings
+                    {
+                        User = user,
+                        IsDarkMode = false,
+                        Language = null,
+                        NotificationsEnabled = true
+                    };
+
+                    var userPrivacy = new UserPrivacy
+                    {
+                        User = user,
+                        ShowEmail = false,
+                        ShowPhoneNumber = false,
+                        ShowLastSeen = true
+                    };
+
+                    var userProfile = new UserProfile
+                    {
+                        User = user,
+                        Name = name,
+                        PublicId = RandomStringGeneratorHelper.GenerateRandomString(6),
+                        PhoneNumber = null,
+                        AvatarUrl = null,
+                        Birthday = birthday,
+                        Bio = null
+                    };
+
                     try
                     {
                         dbContext.Users.Add(user);
+                        dbContext.UserDevices.Add(userDevice);
+                        dbContext.UserSettings.Add(userSetting);
+                        dbContext.UserPrivacies.Add(userPrivacy);
+                        dbContext.UserProfiles.Add(userProfile);
+
+
                         await dbContext.SaveChangesAsync();
                     }
                     catch (Exception ex)
@@ -240,7 +293,7 @@ namespace ProjectMessengerServer
                     await dbContext.SaveChangesAsync();
                 }
                 //
-                Console.WriteLine($"User registered: {email}");
+
                 return Results.Ok(new RegistrationResponse(
                     Token_refresh: hashRefreshToken,
                     Token_access: hashAccessToken
@@ -256,7 +309,9 @@ namespace ProjectMessengerServer
 
                 string email = req.Email;
                 string password = req.Password;
-                string? deviceInfo = req.Device_info;
+                string? deviceId = req.Device_id;
+                string? deviceType = req.Device_type;
+                string? placeAuthorization = req.Place_authorization;
 
                 if (email == null || password == null)
                 {
@@ -286,6 +341,22 @@ namespace ProjectMessengerServer
 
                     if (isPasswordValid)
                     {
+                        var checkDeviceId = await dbContext.UserDevices
+                            .FirstOrDefaultAsync(ud => ud.UserId == user.Id && ud.DeviceId == deviceId);
+
+                        if (checkDeviceId == null)
+                        {
+                            var newUserDevice = new UserDevice
+                            {
+                                User = user,
+                                DeviceId = deviceId ?? null,
+                                DeviceType = deviceType ?? null,
+                                PlaceAuthorization = placeAuthorization ?? null,
+                                LastActive = DateTime.UtcNow
+                            };
+                            dbContext.UserDevices.Add(newUserDevice);
+                        }
+
                         var activeAccessTokens = await dbContext.AccessTokens
                             .Where(x => x.UserId == user.Id && !x.Revoked && x.ExpiresAt > DateTime.UtcNow)
                             .OrderBy(x => x.CreatedAt)
@@ -326,7 +397,6 @@ namespace ProjectMessengerServer
                             CreatedAt = DateTime.UtcNow,
                             ExpiresAt = DateTime.UtcNow.AddDays(30),
                             Used = false,
-                            DeviceInfo = deviceInfo ?? "unknown",
                             IpAddress = GetIpHelper.GetClientIp(httpContext),
                             Revoked = false
                         };
@@ -349,7 +419,6 @@ namespace ProjectMessengerServer
 
             app.MapPost("/auth/get_access_token", async (GetAccessTokenRequest req, HttpContext httpContext) =>
             {
-
                 //data.TryGetValue("email", out string? email);
                 //data.TryGetValue("password", out string? password);
                 //data.TryGetValue("device_info", out string? deviceInfo);
@@ -358,7 +427,9 @@ namespace ProjectMessengerServer
                 //data.TryGetValue("device_info", out string? deviceInfo);
 
                 string refreshTokenSession = req.Token_refresh;
-                string? deviceInfo = req.Device_info;
+                string? deviceId = req.Device_id;
+                string? deviceType = req.Device_type;
+                string? placeAuthorization = req.Place_authorization;
 
                 if (string.IsNullOrWhiteSpace(refreshTokenSession))
                 {
@@ -427,7 +498,6 @@ namespace ProjectMessengerServer
                         CreatedAt = DateTime.UtcNow,
                         ExpiresAt = DateTime.UtcNow.AddDays(30),
                         Used = false,
-                        DeviceInfo = deviceInfo ?? "unknown",
                         IpAddress = GetIpHelper.GetClientIp(httpContext),
                         Revoked = false
                     };
@@ -572,7 +642,7 @@ namespace ProjectMessengerServer
                 return Results.NoContent();
             });
 
-            app.MapPost("/auth/password/verify", async (ForgotpassVerifyRequest req, HttpContext httpContext) =>
+            app.MapPost("/auth/password/verify", async (ForgotPassVerifyRequest req, HttpContext httpContext) =>
             {
 
 
@@ -582,7 +652,6 @@ namespace ProjectMessengerServer
 
                 string email = req.Email;
                 string code = req.Code;
-                string? deviceInfo = req.Device_info;
 
                 if (string.IsNullOrWhiteSpace(email) ||
                     string.IsNullOrWhiteSpace(code))
@@ -635,7 +704,6 @@ namespace ProjectMessengerServer
                             CreatedAt = DateTime.UtcNow,
                             ExpiresAt = DateTime.UtcNow.AddMinutes(15),
                             Used = false,
-                            DeviceInfo = deviceInfo ?? "unknown",
                             IpAddress = GetIpHelper.GetClientIp(httpContext),
                             Revoked = false
                         };
@@ -656,19 +724,21 @@ namespace ProjectMessengerServer
                 //
 
 
-                return Results.Ok(new ForgotpassVerifyResponse(
+                return Results.Ok(new ForgotPassVerifyResponse(
                     Token_reset: hashTokenReset
                 ));
             });
 
-            app.MapPost("/auth/password/change", async (ChangedpassRequest req, HttpContext httpContext) =>
+            app.MapPost("/auth/password/change", async (ChangedPassRequest req, HttpContext httpContext) =>
             {
-
                 //data.TryGetValue("token_reset", out string token);
                 //data.TryGetValue("password", out string newPassword);
 
                 string token = req.Token_reset;
                 string newPassword = req.Password;
+                string? deviceId = req.Device_id;
+                string? deviceType = req.Device_type;
+                string? placeAuthorization = req.Place_authorization;
 
                 if (string.IsNullOrWhiteSpace(token) ||
                     string.IsNullOrWhiteSpace(newPassword))
@@ -695,6 +765,22 @@ namespace ProjectMessengerServer
 
                     var user = tokenReset.User;
 
+                    var checkDeviceId = await dbContext.ForgotPassDevices
+                            .FirstOrDefaultAsync(ud => ud.UserId == user.Id && ud.DeviceId == deviceId);
+
+                    if (checkDeviceId == null)
+                    {
+                        var newUserDevice = new UserDevice
+                        {
+                            UserId = tokenReset.UserId,
+                            DeviceId = deviceId ?? null,
+                            DeviceType = deviceType ?? null,
+                            PlaceAuthorization = placeAuthorization ?? null,
+                            LastActive = DateTime.UtcNow
+                        };
+                        dbContext.UserDevices.Add(newUserDevice);
+                    }
+
                     tokenReset.Used = true;
                     var (hash, salt, iterations) = PasswordHelper.HashPassword(newPassword);
                     user.PasswordHash = hash;
@@ -707,35 +793,212 @@ namespace ProjectMessengerServer
                 return Results.NoContent();
             });
 
+            app.MapPost("/chats", async (CreateChatRequest req, HttpContext httpContext) =>
+            {
+                var auth = httpContext.Request.Headers["Authorization"].ToString();
+                if (!auth.StartsWith("Bearer "))
+                {
+                    return Results.Unauthorized();
+                }
+
+                var token = auth["Bearer ".Length..];
+
+                using var scope = httpContext.RequestServices.CreateScope();
+                {
+                    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+                    var user = await ValidateAccessTokenHelper.ValidateToken(token, dbContext);
+
+                    if (user == null)
+                    {
+                        return Results.Unauthorized();
+                    }
+
+
+                    string chatName = req.Chat_name;
+                    string chatType = req.Chat_type;
+
+
+                    if (string.IsNullOrWhiteSpace(chatName) ||
+                        string.IsNullOrWhiteSpace(chatType))
+                    {
+                        return Results.BadRequest();
+                    }
+
+                    if (chatType != "private" && chatType != "group")
+                    {
+                        return Results.BadRequest();
+                    }
+
+                    var memberUids = req.Member_uids ?? new List<string>();
+
+                    var validMemberIds = memberUids
+                        .Where(uid => !string.IsNullOrWhiteSpace(uid))
+                        .Distinct()
+                        .Select(uid =>
+                        {
+                            var memberProfile = dbContext.UserProfiles
+                                .FirstOrDefault(up => up.PublicId == uid);
+                            if (memberProfile == null || memberProfile.UserId == user.Id)
+                                return -1;
+                            return memberProfile.UserId;
+                        })
+                        .ToList();
+
+                    validMemberIds = validMemberIds
+                        .Where(id => id != -1)
+                        .ToList();
+
+                    validMemberIds.Add(user.Id);
+
+
+                    var chat = new Chat
+                    {
+                        Uid = RandomStringGeneratorHelper.GenerateRandomString(6),
+                        Type = chatType,
+                        Name = chatName,
+                        CreatedAt = DateTime.UtcNow,
+                        Members = new List<ChatMember>()
+                    };
+
+                    ChatMember chatMember;
+
+                    foreach (var memberId in validMemberIds)
+                    {
+                        var member = await dbContext.Users.FindAsync(memberId);
+                        if (member == null)
+                        {
+                            continue;
+                        }
+                        ChatRole role;
+                        if (user.Id == member.Id)
+                        {
+                            continue;
+                        }
+
+                        chatMember = new ChatMember
+                        {
+                            ChatId = chat.Id,
+                            UserId = member.Id,
+                            JoinedAt = DateTime.UtcNow,
+                            Role = ChatRole.Member
+                        };
+                        chat.Members.Add(chatMember);
+                        dbContext.ChatMembers.Add(chatMember);
+                    }
+
+                    chatMember = new ChatMember
+                    {
+                        ChatId = chat.Id,
+                        UserId = user.Id,
+                        JoinedAt = DateTime.UtcNow,
+                        Role = ChatRole.Owner
+                    };
+                    chat.Members.Add(chatMember);
+                    dbContext.ChatMembers.Add(chatMember);
+
+                    dbContext.Chats.Add(chat);
+
+                    var request = new Dictionary<string, string>
+                    {
+                        { "chat_uid", chat.Uid.ToString() },
+                        { "chat_name", chat.Name },
+                        { "chat_type", chat.Type }
+                    };
+
+                    await EventManager(user, dbContext, request, "create_chat", validMemberIds);
+
+                    await dbContext.SaveChangesAsync();
+
+
+                    return Results.Ok(new CreateChatResponse(chat.Uid.ToString()));
+                }
+            });
+
+            app.MapPost("/chats/{chatUid}/join", async (HttpContext httpContext) =>
+            {
+                var auth = httpContext.Request.Headers["Authorization"].ToString();
+                if (!auth.StartsWith("Bearer "))
+                {
+                    return Results.Unauthorized();
+                }
+                var token = auth["Bearer ".Length..];
+                using var scope = builder.Services.BuildServiceProvider().CreateScope();
+                {
+                    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                    var user = await ValidateAccessTokenHelper.ValidateToken(token, dbContext);
+                    if (user == null)
+                    {
+                        return Results.Unauthorized();
+                    }
+                    var chatUid = httpContext.Request.RouteValues["chatUid"]?.ToString();
+
+                    var checkMember = await dbContext.ChatMembers
+                        .FirstOrDefaultAsync(cm => cm.UserId == user.Id && cm.Chat.Uid == chatUid);
+
+                    if (checkMember != null)
+                    {
+                        return Results.Conflict();
+                    }
+
+                    if (string.IsNullOrWhiteSpace(chatUid))
+                    {
+                        return Results.BadRequest();
+                    }
+                    var chat = await dbContext.Chats
+                        .Include(c => c.Members)
+                        .FirstOrDefaultAsync(c => c.Uid == chatUid);
+
+                    if (chat == null)
+                    {
+                        return Results.NotFound();
+                    };
+
+                    if (chat.Type == "private")
+                    {
+                        return Results.StatusCode(403);
+                    }
+
+                    var chatMember = new ChatMember
+                    {
+                        ChatId = chat.Id,
+                        UserId = user.Id,
+                        JoinedAt = DateTime.UtcNow,
+                        Role = ChatRole.Member
+                    };
+
+                    dbContext.ChatMembers.Add(chatMember);
+                    chat.Members.Add(chatMember);
+                    await dbContext.SaveChangesAsync();
+                    return Results.NoContent();
+                }
+            });
+
             app.MapGet("/logs", async (HttpContext httpContext) =>
             {
                 // 1. Берём токен из заголовка
                 var auth = httpContext.Request.Headers["Authorization"].ToString();
                 if (!auth.StartsWith("Bearer "))
+                {
                     return Results.Unauthorized();
+                }
 
                 var token = auth["Bearer ".Length..];
-
-                // 2. Хешируем токен (никогда не храним чистый)
-                var tokenHash = TokenHelper.HashToken(token);
 
                 using var scope = builder.Services.BuildServiceProvider().CreateScope();
                 {
                     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
                     // 3. Ищем токен в БД
-                    var accessToken = await dbContext.AccessTokens
-                        .Include(t => t.User)
-                        .FirstOrDefaultAsync(t =>
-                            t.AccessTokenHash == tokenHash &&
-                            !t.Revoked &&
-                            t.ExpiresAt > DateTime.UtcNow);
+                    var user = await ValidateAccessTokenHelper.ValidateToken(token, dbContext);
 
-                    if (accessToken == null)
+                    if (user == null)
+                    {
                         return Results.Unauthorized();
+                    }
 
                     // 4. Проверка прав
-                    if (accessToken.User.Status != "logger" && accessToken.User.Status != "developer")
+                    if (user.Status != "logger" && user.Status != "developer")
                     {
                         return Results.StatusCode(403);
                     }
@@ -759,6 +1022,340 @@ namespace ProjectMessengerServer
                 }
             });
 
+            app.Map("/ws", async ctx =>
+            {
+                if (!ctx.WebSockets.IsWebSocketRequest)
+                {
+                    ctx.Response.StatusCode = 400;
+                    return;
+                }
+
+                var auth = ctx.Request.Headers["Authorization"].ToString();
+                if (!auth.StartsWith("Bearer "))
+                {
+                    ctx.Response.StatusCode = 401;
+                    return;
+                }
+
+                var token = auth["Bearer ".Length..];
+                using var scope = ctx.RequestServices.CreateScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var user = await ValidateAccessTokenHelper.ValidateToken(token, dbContext);
+
+                if (user == null)
+                {
+                    ctx.Response.StatusCode = 401;
+                    return;
+                }
+
+                using var ws = await ctx.WebSockets.AcceptWebSocketAsync();
+                Console.WriteLine($"WS connected: userId={user.Id}");
+
+
+                var userSequence = await dbContext.UserSequences
+                    .FirstOrDefaultAsync(us => us.UserId == user.Id);
+
+                if (userSequence == null)
+                {
+                    userSequence = new UserSequence
+                    {
+                        UserId = user.Id,
+                        LastSeq = 1
+                    };
+
+                    dbContext.UserSequences.Add(userSequence);
+                    await dbContext.SaveChangesAsync();
+                }
+
+                int currentSeq = userSequence.LastSeq;
+
+                if (!WsConnectionManager.Connections.ContainsKey(user.Id))
+                {
+                    WsConnectionManager.Connections[user.Id] = new List<WebSocket>();
+                }
+
+                WsConnectionManager.Connections[user.Id].Add(ws);
+                try
+                {
+                    while (ws.State == WebSocketState.Open)
+                    {
+                        var buffer = new byte[4096];
+
+                        WebSocketReceiveResult result;
+
+                        try
+                        {
+                            result = await ws.ReceiveAsync(buffer, CancellationToken.None);
+                        }
+                        catch (WebSocketException ex)
+                        {
+                            Console.WriteLine($"WS receive error [{user.Id}]: {ex.Message}");
+                            break;
+                        }
+
+                        if (result.MessageType == WebSocketMessageType.Close)
+                        {
+                            Console.WriteLine($"WS close frame [{user.Id}]");
+                            break;
+                        }
+
+                        if (result.MessageType == WebSocketMessageType.Close)
+                        {
+                            break;
+                        }
+
+                        var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                        WsEnvelope? message;
+                        try
+                        {
+                            message = JsonSerializer.Deserialize<WsEnvelope>(json);
+                        }
+                        catch (JsonException)
+                        {
+                            Console.WriteLine($"[{user.Id}] JSON deserialization error.");
+                            Console.WriteLine(json);
+                            continue;
+                        }
+
+                        if (message == null)
+                        {
+                            Console.WriteLine($"[{user.Id}] Invalid message format.");
+                            continue;
+                        }
+
+                        await ReceiveLoop(user, dbContext, message.Data, message.Op, ws);
+                    }
+                }
+                finally
+                {
+                    WsConnectionManager.Connections[user.Id].Remove(ws);
+
+                    try
+                    {
+                        await ws.CloseAsync(
+                            WebSocketCloseStatus.NormalClosure,
+                            "Closing",
+                            CancellationToken.None
+                        );
+                    }
+                    catch { }
+                }
+
+                Console.WriteLine($"WS disconnected: userId={user.Id}");
+            });
+
+            static async Task EventManager(User user, AppDbContext dbContext, Dictionary<string, string> req, string operation, List<int> memberIds)
+            {
+                try
+                {
+                    WsEnvelope envelope;
+
+
+                    switch (operation)
+                    {
+                        case "create_chat":
+                            req.TryGetValue("chat_uid", out string? chatUid);
+                            req.TryGetValue("chat_name", out string? messageText);
+                            req.TryGetValue("chat_type", out string? chatType);
+
+                            envelope = new WsEnvelope(
+                                "new_chat",
+                                new()
+                                {
+                                    ["chat_uid"] = chatUid,
+                                    ["chat_name"] = messageText,
+                                    ["chat_type"] = chatType
+                                },
+                                Seq: null
+                            );
+
+
+                            foreach (var chatUserId in memberIds)
+                            {
+                                if (WsConnectionManager.Connections.ContainsKey(chatUserId))
+                                {
+                                    var connections = WsConnectionManager.Connections[chatUserId];
+                                    foreach (var connection in connections)
+                                    {
+                                        await SendLoop(connection, user, dbContext, envelope);
+                                    }
+                                }
+                            }
+
+                            break;
+
+                        default:
+                            Console.WriteLine($"Unknown operation: {operation}");
+
+                            return;
+                    }
+                }
+                catch (OperationCanceledException) { }
+                catch (WebSocketException ex)
+                {
+                    Console.WriteLine($"WS receive error [{user.Id}]: {ex.Message}");
+                }
+            }
+
+            static async Task ReceiveLoop(User user, AppDbContext dbContext, Dictionary<string, string> req, string operation, WebSocket? ws = null)
+            {
+                try
+                {
+                    WsEnvelope envelope;
+
+                    switch (operation)
+                    {
+                        case "send_message":
+                            // Обработка операции отправки сообщения
+
+                            req.TryGetValue("chat_uid", out string? chatUid);
+                            req.TryGetValue("message_text", out string? messageText);
+
+                            if (string.IsNullOrWhiteSpace(chatUid) || string.IsNullOrWhiteSpace(messageText))
+                            {
+                                Console.WriteLine($"[{user.Id}] send_message failed: Missing required fields.");
+                                envelope = new WsEnvelope(
+                                    "error",
+                                    new()
+                                    {
+                                        ["code"] = "MISSING_REQUIRED_FIELDS",
+                                        ["message"] = ""
+                                    },
+                                    Seq: null
+                                );
+                                Console.WriteLine($"[{user.Id}] Sending response: {JsonSerializer.Serialize(envelope)}");
+                                SendLoop(ws, user, dbContext, envelope);
+                                return;
+                            }
+
+                            if (!await dbContext.ChatMembers.AnyAsync(cm => cm.Chat.Uid == chatUid && cm.UserId == user.Id))
+                            {
+                                Console.WriteLine($"[{user.Id}] send_message failed: User not in chat.");
+                                envelope = new WsEnvelope(
+                                    "error",
+                                    new()
+                                    {
+                                        ["code"] = "USER_NOT_IN_CHAT",
+                                        ["message"] = ""
+                                    },
+                                    Seq: null
+                                );
+                                Console.Write($"[{user.Id}] Sending response: {JsonSerializer.Serialize(envelope)}");
+                                SendLoop(ws, user, dbContext, envelope);
+                                return;
+                            }
+
+                            var chatId = await dbContext.Chats
+                                .Where(c => c.Uid == chatUid)
+                                .Select(c => c.Id)
+                                .FirstAsync();
+
+                            var Message = new Message
+                            {
+                                ChatId = chatId,
+                                SenderId = user.Id,
+                                Text = messageText,
+                                CreatedAt = DateTime.UtcNow
+                            };
+
+                            dbContext.Messages.Add(Message);
+                            var chatUsers = await dbContext.Chats
+                                .Where(c => c.Uid == chatUid)
+                                .SelectMany(c => c.Members)
+                                .Select(cm => cm.UserId)
+                                .ToListAsync();
+
+                            envelope = new WsEnvelope(
+                                "new_message",
+                                new()
+                                {
+                                    ["chat_uid"] = chatUid,
+                                    ["message_id"] = Message.Id.ToString(),
+                                    ["sender_id"] = Message.SenderId.ToString(),
+                                    ["message_text"] = Message.Text,
+                                    ["created_at"] = Message.CreatedAt.ToString("o")
+                                },
+                                Seq: null
+                            );
+
+                            foreach (var chatUserId in chatUsers)
+                            {
+                                if (chatUserId == user.Id)
+                                    continue;
+                                if (WsConnectionManager.Connections.ContainsKey(chatUserId))
+                                {
+                                    var connections = WsConnectionManager.Connections[chatUserId];
+                                    foreach (var connection in connections)
+                                    {
+                                        await SendLoop(connection, user, dbContext, envelope);
+                                    }
+                                }
+                            }
+
+                            await dbContext.SaveChangesAsync();
+
+                            break;
+
+                        default:
+                            Console.WriteLine($"[{user.Id}] Unknown operation: {operation}");
+
+                            envelope = new WsEnvelope(
+                                "error",
+                                new ()
+                                {
+                                    ["code"] = "OPERATION_IS_NOT_CORRECT",
+                                    ["message"] = ""
+                                },
+                                Seq: null
+                            );
+
+                            Console.Write($"[{user.Id}] Sending response: {JsonSerializer.Serialize(envelope)}");
+
+                            SendLoop(ws, user, dbContext, envelope);
+
+                            return;
+                    }
+                }
+                catch (OperationCanceledException) { }
+                catch (WebSocketException ex)
+                {
+                    Console.WriteLine($"WS receive error [{user.Id}]: {ex.Message}");
+                }
+            }
+
+            static async Task SendLoop(WebSocket ws, User user, AppDbContext dbContext, WsEnvelope envelope)
+            {
+                if (ws.State != WebSocketState.Open)
+                    return;
+
+                var userSequence = await dbContext.UserSequences.FirstAsync(x => x.UserId == user.Id);
+
+                envelope = envelope with { Seq = userSequence.LastSeq };
+
+                var json = JsonSerializer.Serialize(envelope);
+                var bytes = Encoding.UTF8.GetBytes(json);
+
+                try
+                {
+                    await ws.SendAsync(
+                        bytes,
+                        WebSocketMessageType.Text,
+                        true,
+                        CancellationToken.None
+                    );
+
+                    userSequence.LastSeq++;
+                    await dbContext.SaveChangesAsync();
+                }
+                catch (WebSocketException ex)
+                {
+                    Console.WriteLine($"Send loop error: {ex.Message}");
+                    return;
+                }
+
+            }
+
+
             app.MapGet("/ping", () => "pong");
 
             Console.ForegroundColor = ConsoleColor.Yellow;
@@ -768,16 +1365,21 @@ namespace ProjectMessengerServer
             app.Run();
 
         }
-        
-        public record RegistrationRequest(string Username, string Email, string Password, string Birthday, string? Device_info = null);
-        public record RegistrationResponse(string Token_refresh, string Token_access);
-        public record LoginRequest(string Email, string Password, string? Device_info = null);
-        public record LoginResponse(string Token_refresh, string Token_access);
-        public record GetAccessTokenRequest(string Token_refresh, string? Device_info = null);
-        public record GetAccessTokenResponse(string Token_refresh, string Token_access);
-        public record ForgotPassRequest(string Email);
-        public record ForgotpassVerifyRequest(string Email, string Code, string? Device_info = null);
-        public record ForgotpassVerifyResponse(string Token_reset);
-        public record ChangedpassRequest(string Token_reset, string Password);
+
+
     }
+
+    public record RegistrationRequest(string Username, string Email, string Password, string Birthday, string? Device_id = null, string? Device_type = null, string? Place_authorization = null);
+    public record RegistrationResponse(string Token_refresh, string Token_access);
+    public record LoginRequest(string Email, string Password, string? Device_id = null, string? Device_type = null, string? Place_authorization = null);
+    public record LoginResponse(string Token_refresh, string Token_access);
+    public record CreateChatRequest(string Chat_name, string Chat_type, List<string> Member_uids); 
+    public record CreateChatResponse(string Chat_uid);
+    public record GetAccessTokenRequest(string Token_refresh, string? Device_id = null, string? Device_type = null, string? Place_authorization = null);
+    public record GetAccessTokenResponse(string Token_refresh, string Token_access);
+    public record ForgotPassRequest(string Email);
+    public record ForgotPassVerifyRequest(string Email, string Code);
+    public record ForgotPassVerifyResponse(string Token_reset);
+    public record ChangedPassRequest(string Token_reset, string Password, string? Device_id = null, string? Device_type = null, string? Place_authorization = null);
+    public record WsEnvelope(string Op, Dictionary<string, string> Data, int? Seq);
 }

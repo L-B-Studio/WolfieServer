@@ -376,6 +376,8 @@ server.*.cer
 pfx_pwd.bin
 pfx_pwd.*.bin
 
+# Ignore Visual Studio folder
+.vs/
 
 echo ".vs/" > .gitignore
 echo "[Bb]in/" >> .gitignore

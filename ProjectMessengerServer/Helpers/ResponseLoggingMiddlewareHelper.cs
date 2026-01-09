@@ -13,6 +13,18 @@ namespace ProjectMessengerServer.Helpers
 
         public async Task Invoke(HttpContext context)
         {
+            if (context.WebSockets.IsWebSocketRequest)
+            {
+                await _next(context);
+                return;
+            }
+
+            if (!context.Request.ContentType?.Contains("application/json") == true)
+            {
+                await _next(context);
+                return;
+            }
+
             var originalBodyStream = context.Response.Body;
 
             using var responseBody = new MemoryStream();
