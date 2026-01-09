@@ -232,7 +232,6 @@ namespace ProjectMessengerServer
                         CreatedAt = DateTime.UtcNow,
                         ExpiresAt = DateTime.UtcNow.AddDays(30),
                         Used = false,
-                        DeviceInfo = deviceInfo ?? "unknown",
                         IpAddress = GetIpHelper.GetClientIp(httpContext),
                         Revoked = false
                     };
