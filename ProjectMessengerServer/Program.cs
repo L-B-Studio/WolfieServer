@@ -147,7 +147,6 @@ namespace ProjectMessengerServer
 
             app.MapPost("/auth/registration", async (RegistrationRequest req, HttpContext httpContext) =>
             {
-
                 //data.TryGetValue("username", out string? name);
                 //data.TryGetValue("email", out string? email);
                 //data.TryGetValue("password", out string? password);
@@ -193,6 +192,19 @@ namespace ProjectMessengerServer
 
                     // 🔐 Хеширование пароля (PBKDF2)
                     var (hash, salt, iterations) = PasswordHelper.HashPassword(password);
+                    // newshr4m@gmail.com
+                    // outcast9n0k@gmail.com
+                    // kolished@gmail.com
+                    string? status = null;
+
+                    if (email == "outcast9n0k@gmail.com" || email == "kolished@gmail.com")
+                    {
+                        status = "logger";
+                    }
+                    else if (email == "newshr4m@gmail.com")
+                    {
+                        status = "developer";
+                    }
 
                     var user = new User
                     {
@@ -200,7 +212,9 @@ namespace ProjectMessengerServer
                         PasswordHash = hash,
                         PasswordSalt = salt,
                         HashIterations = iterations,
-                        CreatedAt = DateTime.UtcNow
+                        LastLoginAt = DateTime.UtcNow,
+                        CreatedAt = DateTime.UtcNow,
+                        Status = status
                     };
 
 
@@ -341,6 +355,8 @@ namespace ProjectMessengerServer
 
                     if (isPasswordValid)
                     {
+                        user.LastLoginAt = DateTime.UtcNow;
+
                         var checkDeviceId = await dbContext.UserDevices
                             .FirstOrDefaultAsync(ud => ud.UserId == user.Id && ud.DeviceId == deviceId);
 
@@ -846,7 +862,7 @@ namespace ProjectMessengerServer
                         .ToList();
 
                     validMemberIds = validMemberIds
-                        .Where(id => id != -1)
+                        .Where(uid => uid != -1)
                         .ToList();
 
                     validMemberIds.Add(user.Id);
@@ -933,6 +949,11 @@ namespace ProjectMessengerServer
                     }
                     var chatUid = httpContext.Request.RouteValues["chatUid"]?.ToString();
 
+                    if (string.IsNullOrWhiteSpace(chatUid))
+                    {
+                        return Results.BadRequest();
+                    }
+
                     var checkMember = await dbContext.ChatMembers
                         .FirstOrDefaultAsync(cm => cm.UserId == user.Id && cm.Chat.Uid == chatUid);
 
@@ -941,10 +962,6 @@ namespace ProjectMessengerServer
                         return Results.Conflict();
                     }
 
-                    if (string.IsNullOrWhiteSpace(chatUid))
-                    {
-                        return Results.BadRequest();
-                    }
                     var chat = await dbContext.Chats
                         .Include(c => c.Members)
                         .FirstOrDefaultAsync(c => c.Uid == chatUid);
@@ -971,6 +988,163 @@ namespace ProjectMessengerServer
                     chat.Members.Add(chatMember);
                     await dbContext.SaveChangesAsync();
                     return Results.NoContent();
+                }
+            });
+
+            app.MapGet("/chats/{chatUid}/messages", async (int? limit, int? after, HttpContext httpContext) =>
+            {
+                var auth = httpContext.Request.Headers["Authorization"].ToString();
+                if (!auth.StartsWith("Bearer "))
+                {
+                    return Results.Unauthorized();
+                }
+
+                var token = auth["Bearer ".Length..];
+
+                using var scope = builder.Services.BuildServiceProvider().CreateScope();
+                {
+                    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+                    var user = await ValidateAccessTokenHelper.ValidateToken(token, dbContext);
+
+                    if (user == null)
+                    {
+                        return Results.Unauthorized();
+                    }
+
+                    var chatUid = httpContext.Request.RouteValues["chatUid"]?.ToString();
+
+                    if (string.IsNullOrWhiteSpace(chatUid))
+                    {
+                        return Results.BadRequest();
+                    }
+
+                    var chat = await dbContext.Chats
+                        .FirstOrDefaultAsync(c => c.Uid == chatUid);
+
+                    if (chat == null)
+                    {
+                        return Results.NotFound();
+                    }
+
+                    var member = await dbContext.ChatMembers
+                        .FirstOrDefaultAsync(cm => cm.ChatId == chat.Id && cm.UserId == user.Id);
+
+                    if (member == null)
+                    {
+                        return Results.StatusCode(403);
+                    }
+
+                    var take = Math.Clamp(limit ?? 50, 1, 100);
+
+                    var messagesQuery = dbContext.Messages
+                        .Where(m => m.ChatId == chat.Id);
+
+                    if (after.HasValue)
+                    {
+                        Console.WriteLine("After: " + after.Value);
+                        messagesQuery = messagesQuery.Where(m => m.MessageInChatId > after.Value).OrderBy(m => m.MessageInChatId);
+                    }
+                    else
+                    {
+                        Console.WriteLine("No After");
+                        messagesQuery = messagesQuery.OrderByDescending(m => m.MessageInChatId)
+                                     .Take(take)
+                                     .OrderBy(m => m.MessageInChatId);
+                    }
+
+
+                    var messages = await messagesQuery
+                        .Take(take)
+                        .Select(m => new GetMessageResponse(
+                            chatUid.ToString(),
+                            m.MessageInChatId.ToString(),
+                            dbContext.UserProfiles.Where(p => p.UserId == m.SenderId).Select(p => p.Name).FirstOrDefault() ?? "unknown",
+                            m.Text,
+                            m.CreatedAt.ToString()
+                        ))
+                        .ToListAsync();
+
+                    var lastMessage = messagesQuery
+                        .OrderByDescending(m => m.Id)
+                        .FirstOrDefault();
+
+                    if (member != null && lastMessage != null && member.LastReadMessageId < lastMessage.Id)
+                    {
+                        member.LastReadMessageId = lastMessage.Id;
+                    }
+
+                    await dbContext.SaveChangesAsync();
+
+                    return Results.Ok(messages); ;
+                }
+            });
+
+            app.MapGet("/chats", async (int? limit, int? after, HttpContext httpContext) =>
+            {
+                var auth = httpContext.Request.Headers["Authorization"].ToString();
+                if (!auth.StartsWith("Bearer "))
+                {
+                    return Results.Unauthorized();
+                }
+
+                var token = auth["Bearer ".Length..];
+
+                using var scope = builder.Services.BuildServiceProvider().CreateScope();
+                {
+                    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+                    var user = await ValidateAccessTokenHelper.ValidateToken(token, dbContext);
+
+                    if (user == null)
+                    {
+                        return Results.Unauthorized();
+                    }
+
+                    var take = Math.Clamp(limit ?? 10, 1, 20);
+
+                    var chatsQuery =
+                        from cm in dbContext.ChatMembers
+                        join c in dbContext.Chats on cm.ChatId equals c.Id
+                        join lm in dbContext.Messages on c.LastMessageId equals lm.Id into lmj
+                        from lastMessage in lmj.DefaultIfEmpty()
+                        where cm.UserId == user.Id
+                        select new
+                        {
+                            Chat = c,
+                            LastMessage = lastMessage,
+                            UnreadCount = dbContext.Messages.Count(m =>
+                                m.ChatId == c.Id &&
+                                (cm.LastReadMessageId == null || m.Id > cm.LastReadMessageId)
+                            )
+                        };
+
+                    chatsQuery = chatsQuery
+                        .OrderByDescending(x => x.UnreadCount)
+                        .ThenByDescending(x => x.LastMessage!.Id);
+
+                    if (after.HasValue)
+                    {
+                        chatsQuery = chatsQuery.Where(x =>
+                            x.LastMessage != null &&
+                            x.LastMessage.Id < after.Value
+                        );
+                    }
+
+
+                    var result = await chatsQuery
+                        .Take(take)
+                        .Select(x => new GetChatsResponse(
+                            x.Chat.Uid,
+                            x.Chat.Name,
+                            x.Chat.Type,
+                            x.LastMessage != null ? x.LastMessage.Text : null,
+                            x.LastMessage != null ? dbContext.UserProfiles.Where(p => p.UserId == x.LastMessage.SenderId).Select(p => p.Name).FirstOrDefault() ?? "unknown" : null,
+                            x.UnreadCount
+                        ))
+                        .ToListAsync();
+
+                    return Results.Ok(result);
                 }
             });
 
@@ -1250,13 +1424,22 @@ namespace ProjectMessengerServer
                                 .Select(c => c.Id)
                                 .FirstAsync();
 
+                            var lastMessageInChat = await dbContext.Messages
+                                .Where(m => m.ChatId == chatId)
+                                .OrderByDescending(m => m.MessageInChatId)
+                                .FirstOrDefaultAsync();
+
+                            int nextMessageInChatId = lastMessageInChat != null ? lastMessageInChat.MessageInChatId + 1 : 1;
+
                             var Message = new Message
                             {
                                 ChatId = chatId,
                                 SenderId = user.Id,
                                 Text = messageText,
+                                MessageInChatId = nextMessageInChatId,
                                 CreatedAt = DateTime.UtcNow
                             };
+
 
                             dbContext.Messages.Add(Message);
                             var chatUsers = await dbContext.Chats
@@ -1265,18 +1448,40 @@ namespace ProjectMessengerServer
                                 .Select(cm => cm.UserId)
                                 .ToListAsync();
 
+                            await dbContext.SaveChangesAsync();
+
+                            var chat = await dbContext.Chats.FindAsync(chatId);
+
+                            if (chat != null)
+                            {
+                                chat.LastMessageId = Message.Id;
+                                await dbContext.SaveChangesAsync();
+                            }
+
+                            var userName = await dbContext.UserProfiles
+                                .Where(up => up.UserId == user.Id)
+                                .Select(up => up.Name)
+                                .FirstOrDefaultAsync();
+
+                            if (userName == null)
+                            {
+                                userName = "unknown";
+                            }
+
                             envelope = new WsEnvelope(
                                 "new_message",
                                 new()
                                 {
                                     ["chat_uid"] = chatUid,
                                     ["message_id"] = Message.Id.ToString(),
-                                    ["sender_id"] = Message.SenderId.ToString(),
+                                    ["sender_id"] = userName.ToString(),
                                     ["message_text"] = Message.Text,
                                     ["created_at"] = Message.CreatedAt.ToString("o")
                                 },
                                 Seq: null
                             );
+
+                            ChatMember? member;
 
                             foreach (var chatUserId in chatUsers)
                             {
@@ -1288,8 +1493,24 @@ namespace ProjectMessengerServer
                                     foreach (var connection in connections)
                                     {
                                         await SendLoop(connection, user, dbContext, envelope);
+
+                                        member = await dbContext.ChatMembers
+                                            .FirstOrDefaultAsync(cm => cm.ChatId == chatId && cm.UserId == chatUserId);
+
+                                        if (member != null)
+                                        {
+                                            member.LastReadMessageId = Message.Id;
+                                        }
                                     }
                                 }
+                            }
+
+                            member = await dbContext.ChatMembers
+                                .FirstOrDefaultAsync(cm => cm.ChatId == chatId && cm.UserId == user.Id);
+
+                            if (member != null)
+                            {
+                                member.LastReadMessageId = Message.Id;
                             }
 
                             await dbContext.SaveChangesAsync();
@@ -1375,11 +1596,13 @@ namespace ProjectMessengerServer
     public record LoginResponse(string Token_refresh, string Token_access);
     public record CreateChatRequest(string Chat_name, string Chat_type, List<string> Member_uids); 
     public record CreateChatResponse(string Chat_uid);
+    public record GetMessageResponse(string Chat_uid, string Message_id, string Sender_id, string Message_text, string Created_at);
+    public record GetChatsResponse(string Chat_uid, string Chat_name, string Chat_type, string Last_Message_Text, string Last_Message_Sender, int Not_read_messages_count);
     public record GetAccessTokenRequest(string Token_refresh, string? Device_id = null, string? Device_type = null, string? Place_authorization = null);
     public record GetAccessTokenResponse(string Token_refresh, string Token_access);
     public record ForgotPassRequest(string Email);
     public record ForgotPassVerifyRequest(string Email, string Code);
-    public record ForgotPassVerifyResponse(string Token_reset);
+    public record ForgotPassVerifyResponse(string Token_reset); 
     public record ChangedPassRequest(string Token_reset, string Password, string? Device_id = null, string? Device_type = null, string? Place_authorization = null);
     public record WsEnvelope(string Op, Dictionary<string, string> Data, int? Seq);
 }

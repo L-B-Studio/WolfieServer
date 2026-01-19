@@ -18,6 +18,6 @@ namespace ProjectMessengerServer.Model
         public DateTime CreatedAt { get; set; }
         public bool IsBlocked { get; set; }
         public DateTime LastLoginAt { get; set; }
-        public ICollection<ChatMember>? ChatMembers { get; set; } = null!;
+        public ICollection<ChatMember> ChatMembers { get; set; } = new List<ChatMember>();
     }
 }
