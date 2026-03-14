@@ -32,10 +32,83 @@ namespace ProjectMessengerServer.Infrastructure.WebSockets
 
             var users = await _chatService.GetChatMembers(chat.Uid);
 
-            foreach (var userId in users)
+            foreach (var userIdInChat in users)
             {
-                var sockets = _connections.GetConnections(userId);
+                var sockets = _connections.GetConnections(userIdInChat);
 
+                foreach (var socket in sockets)
+                {
+                    await WsSender.SendAsync(socket, envelope);
+                }
+            }
+        }
+
+        public async Task BroadcastChatDelete(string chatUid)
+        {
+            var envelope = new WsEnvelope(
+                "delete_chat",
+                new()
+                {
+                    ["chat_uid"] = chatUid
+                },
+                null
+            );
+
+            var users = await _chatService.GetChatMembers(chatUid);
+
+            foreach (var userIdInChat in users)
+            {
+                var sockets = _connections.GetConnections(userIdInChat);
+
+                foreach (var socket in sockets)
+                {
+                    await WsSender.SendAsync(socket, envelope);
+                }
+            }
+        }
+
+        public async Task BroadcastChatJoinUser(string chatUid, int userId)
+        {
+            var envelope = new WsEnvelope(
+                "join_chat",
+                new()
+                {
+                    ["chat_uid"] = chatUid,
+                    ["user_public_id"] = _dbContext.UserProfiles.Where(p => p.UserId == userId).Select(p => p.Name).FirstOrDefault()!,
+                    ["user_name"] = _dbContext.UserProfiles.Where(p => p.UserId == userId).Select(p => p.Name).FirstOrDefault()!
+                },
+                null
+            );
+
+            var users = await _chatService.GetChatMembers(chatUid);
+
+            foreach (var userIdInChat in users)
+            {
+                var sockets = _connections.GetConnections(userIdInChat);
+
+                foreach (var socket in sockets)
+                {
+                    await WsSender.SendAsync(socket, envelope);
+                }
+            }
+        }
+
+        public async Task BroadcastChatLeaveUser(string chatUid, int userId)
+        {
+            var envelope = new WsEnvelope(
+                "leave_chat",
+                new()
+                {
+                    ["chat_uid"] = chatUid,
+                    ["user_public_id"] = _dbContext.UserProfiles.Where(p => p.UserId == userId).Select(p => p.Name).FirstOrDefault()!,
+                    ["user_name"] = _dbContext.UserProfiles.Where(p => p.UserId == userId).Select(p => p.Name).FirstOrDefault()!
+                },
+                null
+            );
+            var users = await _chatService.GetChatMembers(chatUid);
+            foreach (var userIdInChat in users)
+            {
+                var sockets = _connections.GetConnections(userIdInChat);
                 foreach (var socket in sockets)
                 {
                     await WsSender.SendAsync(socket, envelope);
@@ -61,9 +134,13 @@ namespace ProjectMessengerServer.Infrastructure.WebSockets
             //x.LastMessage != null! ? _dbContext.UserProfiles.Where(p => p.UserId == x.LastMessage.SenderId).Select(p => p.Name).FirstOrDefault() ?? "unknown" : null!,
             var users = await _chatService.GetChatMembers(chatUid);
 
-            foreach (var uid in users)
+            foreach (var userIdInChat in users)
             {
-                var sockets = _connections.GetConnections(uid);
+                if (userIdInChat == userId)
+                {
+                    continue;
+                }
+                var sockets = _connections.GetConnections(userIdInChat);
                 foreach (var socket in sockets)
                 {
                     await WsSender.SendAsync(socket, envelope);

@@ -121,6 +121,71 @@ namespace ProjectMessengerServer.Application.Services
             return chat;
         }
 
+        public async Task<Result> CanDeleteChatAsync(string chatUid, int userId)
+        {
+            var user = await _dbContext.Users.FindAsync(userId);
+            if (string.IsNullOrWhiteSpace(chatUid))
+            {
+                return Result.Failure();
+            }
+            var chat = await _dbContext.Chats
+                .Include(c => c.Members)
+                .FirstOrDefaultAsync(c => c.Uid == chatUid);
+            if (chat == null)
+            {
+                return Result.Failure();
+            }
+            var member = chat.Members.FirstOrDefault(m => m.UserId == user.Id);
+            if (member == null || member.Role != ChatRole.Owner)
+            {
+                return Result.Failure();
+            }
+            return Result.Success();
+        }
+
+        public async Task<Result> DeleteChatAsync(string chatUid, int userId)
+        {
+            var user = await _dbContext.Users.FindAsync(userId);
+            if (string.IsNullOrWhiteSpace(chatUid))
+            {
+                return Result.Failure();
+            }
+            var chat = await _dbContext.Chats
+                .Include(c => c.Members)
+                .FirstOrDefaultAsync(c => c.Uid == chatUid);
+            if (chat == null)
+            {
+                return Result.Failure();
+            }
+            var member = chat.Members.FirstOrDefault(m => m.UserId == user.Id);
+            if (member == null || member.Role != ChatRole.Owner)
+            {
+                return Result.Failure();
+            }
+
+            var chatMember = await _dbContext.ChatMembers
+                .Where(cm => cm.ChatId == chat.Id)
+                .ToListAsync();
+
+            foreach (var cm in chatMember)
+            {
+                _dbContext.ChatMembers.Remove(cm);
+            }
+
+            var messages = await _dbContext.Messages
+                .Where(m => m.ChatId == chat.Id)
+                .ToListAsync();
+
+            foreach (var message in messages)
+            {
+                _dbContext.Messages.Remove(message);
+            }
+
+            _dbContext.Chats.Remove(chat);
+            await _dbContext.SaveChangesAsync();
+            return Result.Success();
+        }
+
         public async Task<List<GetChatsResponse>> GetChatsAsync(int? limit, int? after, int userId)
         {
             var user = await _dbContext.Users.FindAsync(userId);
@@ -215,6 +280,62 @@ namespace ProjectMessengerServer.Application.Services
             _dbContext.ChatMembers.Add(chatMember);
             chat.Members.Add(chatMember);
             await _dbContext.SaveChangesAsync();
+
+            return Result.Success();
+        }
+
+        public async Task<Result> CanLeaveChatAsync(string chatUid, int userId)
+        {
+            var user = await _dbContext.Users.FindAsync(userId);
+            if (string.IsNullOrWhiteSpace(chatUid))
+            {
+                return Result.Failure();
+            }
+            var member = await _dbContext.ChatMembers
+                .FirstOrDefaultAsync(cm => cm.UserId == user.Id && cm.Chat.Uid == chatUid);
+            if (member == null)
+            {
+                return Result.Failure();
+            }
+            return Result.Success();
+        }
+
+        public async Task<Result> LeaveChatAsync(string chatUid, int userId)
+        {
+            var user = await _dbContext.Users.FindAsync(userId);
+            if (string.IsNullOrWhiteSpace(chatUid))
+            {
+                return Result.Failure();
+            }
+            var member = await _dbContext.ChatMembers
+                .FirstOrDefaultAsync(cm => cm.UserId == user.Id && cm.Chat.Uid == chatUid);
+            if (member == null)
+            {
+                return Result.Failure();
+            }
+            _dbContext.ChatMembers.Remove(member);
+
+            var chat = await _dbContext.Chats
+                .Include(c => c.Members)
+                .FirstOrDefaultAsync(c => c.Uid == chatUid);
+
+            if (chat == null)
+            {
+                return Result.Failure();
+            }
+
+            chat.Members.Remove(member);
+
+            await _dbContext.SaveChangesAsync();
+
+            if (member.Role == ChatRole.Owner)
+            {
+                var newOwner = chat.Members.OrderBy(m => m.JoinedAt).FirstOrDefault();
+                if (newOwner != null)
+                {
+                    newOwner.Role = ChatRole.Owner;
+                }
+            }
 
             return Result.Success();
         }

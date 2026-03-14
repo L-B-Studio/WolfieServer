@@ -60,6 +60,34 @@ namespace ProjectMessengerServer.Controllers
         }
 
         [Authorize]
+        [HttpDelete("{chatUid}")]
+        public async Task<IActionResult> DeleteChat(string chatUid)
+        {
+            var stringUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            stringUserId = int.TryParse(stringUserId, out int userId) ? userId.ToString() : null;
+            if (string.IsNullOrWhiteSpace(stringUserId))
+            {
+                return Unauthorized();
+            }
+            if (string.IsNullOrWhiteSpace(chatUid))
+            {
+                return BadRequest();
+            }
+            var result = await _chatService.CanDeleteChatAsync(chatUid, userId);
+            if (!result.IsSuccess)
+            {
+                return BadRequest();
+            }
+            await _wsEventService.BroadcastChatDelete(chatUid);
+            var delete = await _chatService.DeleteChatAsync(chatUid, userId);
+            if (!delete.IsSuccess)
+            {
+                return BadRequest();
+            }
+            return NoContent();
+        }
+
+        [Authorize]
         [HttpGet]
         public async Task<IActionResult> GetChats(int? limit, int? after)
         {
@@ -114,11 +142,47 @@ namespace ProjectMessengerServer.Controllers
                 return BadRequest();
             }
 
+            await _wsEventService.BroadcastChatJoinUser(chatUid, userId);
+
             return NoContent();
         }
 
         [Authorize]
-        [HttpPost("{chatUid}/messages")]
+        [HttpDelete("{chatUid}/leave")]
+        public async Task<IActionResult> LeaveChat(string chatUid)
+        {
+            var stringUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            stringUserId = int.TryParse(stringUserId, out int userId) ? userId.ToString() : null;
+            if (string.IsNullOrWhiteSpace(stringUserId))
+            {
+                return Unauthorized();
+            }
+            if (string.IsNullOrWhiteSpace(chatUid))
+            {
+                return BadRequest();
+            }
+
+            var result = await _chatService.CanLeaveChatAsync(chatUid, userId);
+
+            if (!result.IsSuccess)
+            {
+                return BadRequest();
+            }
+
+            await _wsEventService.BroadcastChatLeaveUser(chatUid, userId);
+
+            var leave = await _chatService.LeaveChatAsync(chatUid, userId);
+
+            if (!leave.IsSuccess)
+            {
+                return BadRequest();
+            }
+
+            return NoContent();
+        }
+
+        [Authorize]
+        [HttpGet("{chatUid}/messages")]
         public async Task<IActionResult> GetMessage(string chatUid, int? limit, int? after)
         {
             var stringUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -147,7 +211,7 @@ namespace ProjectMessengerServer.Controllers
                 return BadRequest();
             }
 
-            return Ok(messages); ;
+            return Ok(messages);
         }
     }
 }
