@@ -18,8 +18,8 @@ namespace ProjectMessengerServer
     {
         public static IServiceProvider Services { get; private set; } = null!;
         private const int _port = 1234;
-        private const string _serverIp = "192.168.168.118";
-        //private const string _serverIp = "141.105.132.149";
+        //private const string _serverIp = "192.168.168.118";
+        private const string _serverIp = "141.105.132.149";
 
         public static void Main(string[] args)
         {

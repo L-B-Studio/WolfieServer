@@ -132,6 +132,7 @@ namespace ProjectMessengerServer.Infrastructure.WebSockets
             );
 
             //x.LastMessage != null! ? _dbContext.UserProfiles.Where(p => p.UserId == x.LastMessage.SenderId).Select(p => p.Name).FirstOrDefault() ?? "unknown" : null!,
+
             var users = await _chatService.GetChatMembers(chatUid);
 
             foreach (var userIdInChat in users)

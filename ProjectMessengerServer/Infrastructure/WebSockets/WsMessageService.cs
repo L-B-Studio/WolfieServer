@@ -77,6 +77,13 @@ namespace ProjectMessengerServer.Infrastructure.WebSockets
                 .Select(c => c.Id)
                 .FirstAsync();
 
+            var chat = await _db.Chats.FirstOrDefaultAsync(c => c.Id == chatId);
+
+            if (chat == null) {
+                Console.WriteLine($"Chat with UID '{chatUid}' not found");
+                return;
+            }
+
             var lastMessageInChatId = await _db.Messages
                 .Where(m => m.ChatId == chatId)
                 .OrderByDescending(m => m.CreatedAt)
@@ -93,6 +100,11 @@ namespace ProjectMessengerServer.Infrastructure.WebSockets
             };
 
             _db.Messages.Add(message);
+
+            await _db.SaveChangesAsync();
+
+            chat.LastMessageId = message.Id;
+
             await _db.SaveChangesAsync();
 
             await _eventService.BroadcastMessage(userId, chatUid, message);
