@@ -1,16 +1,16 @@
-﻿using System.Net;
-using Microsoft.EntityFrameworkCore;
-using ProjectMessengerServer.Application.Services;
-using ProjectMessengerServer.Infrastructure.Data;
-using ProjectMessengerServer.Infrastructure.WebSockets;
-using ProjectMessengerServer.Infrastructure.Logging;
-using ProjectMessengerServer.Infrastructure.Security;
-using Microsoft.IdentityModel.Tokens;
+﻿using System.IdentityModel.Tokens.Jwt;
+using System.Net;
+using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using ProjectMessengerServer.Application.Services;
 using ProjectMessengerServer.Domain.Entities;
-using System.Security.Claims;
-using System.IdentityModel.Tokens.Jwt;
+using ProjectMessengerServer.Infrastructure.Data;
+using ProjectMessengerServer.Infrastructure.Logging;
+using ProjectMessengerServer.Infrastructure.Security;
+using ProjectMessengerServer.Infrastructure.WebSockets;
 
 namespace ProjectMessengerServer
 {
@@ -53,7 +53,7 @@ namespace ProjectMessengerServer
             builder.Services.AddScoped<WsHandler>();
             builder.Services.AddScoped<WsMessageService>();
             builder.Services.AddSingleton<WsConnectionManager>();
-            builder.Services.AddScoped<WsEventService>(); 
+            builder.Services.AddScoped<WsEventService>();
             builder.Services.AddScoped<WsSender>();
 
             builder.Services.AddScoped<LogManager>();

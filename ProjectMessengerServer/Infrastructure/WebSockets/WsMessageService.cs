@@ -105,6 +105,10 @@ namespace ProjectMessengerServer.Infrastructure.WebSockets
 
             chat.LastMessageId = message.Id;
 
+            var member = await _db.ChatMembers.FirstOrDefaultAsync(cm => cm.ChatId == chatId && cm.UserId == userId);
+
+            member.LastReadMessageId = message.Id;
+
             await _db.SaveChangesAsync();
 
             await _eventService.BroadcastMessage(userId, chatUid, message);
