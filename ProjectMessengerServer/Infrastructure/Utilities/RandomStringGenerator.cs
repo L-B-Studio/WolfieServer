@@ -11,12 +11,10 @@ namespace ProjectMessengerServer.Infrastructure.Utilities
         {
             var random = new Random();
 
-            // Используем StringBuilder для эффективного построения строки
             StringBuilder stringBuilder = new StringBuilder(length);
 
             for (int i = 0; i < length; i++)
             {
-                // Выбираем случайный символ из Chars
                 char randomChar = Chars[random.Next(Chars.Length)];
                 stringBuilder.Append(randomChar);
             }

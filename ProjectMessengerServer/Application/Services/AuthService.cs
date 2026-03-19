@@ -40,7 +40,6 @@ namespace ProjectMessengerServer.Application.Services
                 return null;
             }
 
-            // 🔐 Хеширование пароля (PBKDF2)
             var (hash, salt, iterations) = PasswordHelper.HashPassword(password);
             // newshr4m@gmail.com
             // outcast9n0k@gmail.com

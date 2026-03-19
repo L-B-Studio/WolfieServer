@@ -18,8 +18,8 @@ namespace ProjectMessengerServer
     {
         public static IServiceProvider Services { get; private set; } = null!;
         private const int _port = 1234;
-        private const string _serverIp = "192.168.168.118";
-        //private const string _serverIp = "141.105.132.149";
+        //private const string _serverIp = "192.168.168.118";
+        private const string _serverIp = "141.105.132.149";
 
         public static void Main(string[] args)
         {
@@ -34,10 +34,9 @@ namespace ProjectMessengerServer
 
             var builder = WebApplication.CreateBuilder(args);
 
-            // добавляем DbContext сразу в DI приложения
             builder.Services.AddDbContext<AppDbContext>(options =>
                 options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
-            // Собираем сервис-провайдер
+
             //var serviceProvider = new ServiceCollection().BuildServiceProvider();
 
             builder.Services.AddHttpContextAccessor();
@@ -158,8 +157,8 @@ namespace ProjectMessengerServer
                     Console.WriteLine("JWT validated successfully");
 
                     var subClaim = principal.Claims.FirstOrDefault(c =>
-                        c.Type == JwtRegisteredClaimNames.Sub || // "sub"
-                        c.Type == ClaimTypes.NameIdentifier      // иногда "sub" мапится сюда
+                        c.Type == JwtRegisteredClaimNames.Sub ||
+                        c.Type == ClaimTypes.NameIdentifier
                     );
 
                     if (subClaim == null || !int.TryParse(subClaim.Value, out int userId))

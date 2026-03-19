@@ -28,26 +28,21 @@ namespace ProjectMessengerServer.Infrastructure.Logging
                 return;
             }
 
-            // ===== IP клиента =====
             var ip = context.Connection.RemoteIpAddress?.ToString();
 
-
-            // ===== Метод и путь =====
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine("----- HTTP REQUEST -----");
             Console.WriteLine($"Time: {DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")}");
             Console.WriteLine($"IP: {ip}");
             Console.WriteLine($"{context.Request.Method} {context.Request.Path}");
 
-            // ===== Headers =====
             Console.WriteLine("Headers:");
             foreach (var header in context.Request.Headers)
             {
                 Console.WriteLine($"{header.Key}: {header.Value}");
             }
 
-            // ===== Body =====
-            context.Request.EnableBuffering(); // 🔥 важно
+            context.Request.EnableBuffering();
 
             Console.WriteLine("Body: <hidden>");
             Console.WriteLine("------------------------");

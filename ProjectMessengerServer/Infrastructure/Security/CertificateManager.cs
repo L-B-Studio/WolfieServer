@@ -7,7 +7,7 @@ namespace ProjectMessengerServer.Infrastructure.Security
 {
     public static class CertificateManager
     {
-        private const string PfxFile = "server.pfx"; // самоподписанный сертификат
+        private const string PfxFile = "server.pfx";
         private const string CerFile = "server.cer";
 
 
@@ -28,7 +28,6 @@ namespace ProjectMessengerServer.Infrastructure.Security
                 CertPasswordManager.SavePassword(pfxPassword);
             }
 
-            // 2️⃣ Если ничего нет — создаём самоподписанный
             if (!File.Exists(pfxPath))
             {
                 Console.WriteLine("Generating a self-signed certificate...");
@@ -68,7 +67,6 @@ namespace ProjectMessengerServer.Infrastructure.Security
             using var rsa = RSA.Create(2048);
             var req = new CertificateRequest(subjectName, rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
 
-            // Добавляем SAN: localhost и 127.0.0.1 
             var sanBuilder = new SubjectAlternativeNameBuilder();
             sanBuilder.AddDnsName("MyTlsServer");
             sanBuilder.AddIpAddress(IPAddress.Parse("213.231.4.165"));
@@ -79,10 +77,10 @@ namespace ProjectMessengerServer.Infrastructure.Security
             req.CertificateExtensions.Add(
                 new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyEncipherment, false));
             req.CertificateExtensions.Add(
-                new X509EnhancedKeyUsageExtension(new OidCollection { new Oid("1.3.6.1.5.5.7.3.1") }, false)); // Server auth
+                new X509EnhancedKeyUsageExtension(new OidCollection { new Oid("1.3.6.1.5.5.7.3.1") }, false));
 
             var cert = req.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddYears(1));
-            // Export & re-import to get a cert that contains the private key and is exportable
+
             var pfxBytes = cert.Export(X509ContentType.Pfx);
             return new X509Certificate2(pfxBytes, (string?)null, X509KeyStorageFlags.Exportable);
         }
