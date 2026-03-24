@@ -37,7 +37,7 @@ namespace ProjectMessengerServer.Application.Services
             };
 
             dbContext.UserProfiles.Add(userProfile);
-            await dbContext.SaveChangesAsync();
+
             return userProfile;
         }
     }

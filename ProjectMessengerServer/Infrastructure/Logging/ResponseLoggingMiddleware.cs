@@ -31,13 +31,25 @@ namespace ProjectMessengerServer.Infrastructure.Logging
             using var responseBody = new MemoryStream();
             context.Response.Body = responseBody;
 
-            await _next(context);
+            string ip;
 
-            context.Response.Body.Seek(0, SeekOrigin.Begin);
-            var bodyText = await new StreamReader(context.Response.Body).ReadToEndAsync();
-            context.Response.Body.Seek(0, SeekOrigin.Begin);
+            try
+            {
+                await _next(context);
 
-            var ip = context.Connection.RemoteIpAddress?.ToString();
+                responseBody.Seek(0, SeekOrigin.Begin);
+                var text = await new StreamReader(responseBody).ReadToEndAsync();
+
+                ip = context.Connection.RemoteIpAddress?.ToString();
+
+                responseBody.Seek(0, SeekOrigin.Begin);
+                await responseBody.CopyToAsync(originalBodyStream);
+            }
+            finally
+            {
+                context.Response.Body = originalBodyStream;
+            }
+
 
             Console.ForegroundColor = ConsoleColor.Red;
             Console.WriteLine("----- HTTP RESPONSE -----");
@@ -75,9 +87,6 @@ namespace ProjectMessengerServer.Infrastructure.Logging
             var dbContext = context.RequestServices.GetRequiredService<AppDbContext>();
 
             await _logManager.AddLog("INFO", messageLog);
-
-            await responseBody.CopyToAsync(originalBodyStream);
-            context.Response.Body = originalBodyStream;
         }
     }
 }

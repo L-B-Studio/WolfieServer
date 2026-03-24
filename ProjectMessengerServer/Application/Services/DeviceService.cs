@@ -23,8 +23,8 @@ namespace ProjectMessengerServer.Application.Services
                 PlaceAuthorization = placeAuthorization ?? null,
                 LastActive = DateTime.UtcNow
             };
+;
             dbContext.UserDevices.Add(userDevice);
-            await dbContext.SaveChangesAsync();
 
             return userDevice;
         }

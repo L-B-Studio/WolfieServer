@@ -16,15 +16,18 @@ namespace ProjectMessengerServer.Application.Services
         private readonly DeviceService _deviceService;
         private readonly ProfileService _profileService;
 
-        public AuthService(AppDbContext _dbContext, DeviceService _deviceService, ProfileService profileService)
+        public AuthService(AppDbContext _dbContext, DeviceService deviceService, ProfileService profileService)
         {
             dbContext = _dbContext;
-            _deviceService = _deviceService;
+            _deviceService = deviceService;
             _profileService = profileService;
         }
 
         public async Task<User> CreateUserAsync(RegistrationRequest req)
         {
+            if (req == null)
+                throw new ArgumentNullException(nameof(req));
+
             string name = req.Username;
             string email = req.Email;
             string password = req.Password;
@@ -33,6 +36,12 @@ namespace ProjectMessengerServer.Application.Services
             string? deviceType = req.Device_type;
             string? placeAuthorization = req.Place_authorization;
             DateTime.TryParse(birthdayString, out DateTime birthday);
+
+            if (string.IsNullOrWhiteSpace(email))
+                throw new Exception("Email is required");
+
+            if (string.IsNullOrWhiteSpace(password))
+                throw new Exception("Password is required");
 
             if (await dbContext.Users.AnyAsync(u => u.Email == email))
             {
@@ -66,8 +75,11 @@ namespace ProjectMessengerServer.Application.Services
                 Status = status
             };
 
+            dbContext.Users.Add(user);
 
             var userDevice = await _deviceService.AddUserDeviceAsync(user, deviceId, deviceType, placeAuthorization);
+
+            var userProfile = await _profileService.CreateUserProfileAsync(user, name, birthday);
 
             var userSetting = new UserSettings
             {
@@ -85,16 +97,11 @@ namespace ProjectMessengerServer.Application.Services
                 ShowLastSeen = true
             };
 
-
-            var userProfile = await _profileService.CreateUserProfileAsync(user, name, birthday);
+            dbContext.UserSettings.Add(userSetting);
+            dbContext.UserPrivacies.Add(userPrivacy);
 
             try
             {
-                dbContext.Users.Add(user);
-                dbContext.UserSettings.Add(userSetting);
-                dbContext.UserPrivacies.Add(userPrivacy);
-
-
                 await dbContext.SaveChangesAsync();
             }
             catch (Exception ex)
