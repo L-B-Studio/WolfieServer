@@ -23,20 +23,36 @@ namespace ProjectMessengerServer.Infrastructure.WebSockets
 
             var buffer = new byte[4096];
 
-            while (socket.State == WebSocketState.Open)
+            try
             {
-                var result = await socket.ReceiveAsync(buffer, CancellationToken.None);
-
-                if (result.MessageType == WebSocketMessageType.Close)
+                while (socket.State == WebSocketState.Open)
                 {
-                    _manager.Remove(userId, socket);
-                    await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
-                    break;
+                    var result = await socket.ReceiveAsync(buffer, CancellationToken.None);
+
+                    if (result.MessageType == WebSocketMessageType.Close)
+                    {
+                        _manager.Remove(userId, socket);
+                        await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, "", CancellationToken.None);
+                        break;
+                    }
+
+                    var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
+
+                    await _messageService.ProcessMessageAsync(userId, socket, json);
                 }
-
-                var json = Encoding.UTF8.GetString(buffer, 0, result.Count);
-
-                await _messageService.ProcessMessageAsync(userId, socket, json);
+            }
+            catch (WebSocketException ex)
+            {
+                Console.WriteLine($"WS error: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Unexpected WS error: {ex.Message}");
+            }
+            finally
+            {
+                socket.Dispose();
+                Console.WriteLine($"User {userId} disconnected");
             }
         }
     }

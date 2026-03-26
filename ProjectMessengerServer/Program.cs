@@ -48,6 +48,7 @@ namespace ProjectMessengerServer
             builder.Services.AddScoped<EmailService>();
             builder.Services.AddScoped<DeviceService>();
             builder.Services.AddScoped<ProfileService>();
+            builder.Services.AddScoped<UserService>();
 
             builder.Services.AddScoped<WsHandler>();
             builder.Services.AddScoped<WsMessageService>();
@@ -116,8 +117,6 @@ namespace ProjectMessengerServer
 
             app.Map("/ws", async ctx =>
             {
-                Console.WriteLine($"New WS connection from {ctx.Connection.RemoteIpAddress}");
-
                 if (!ctx.WebSockets.IsWebSocketRequest)
                 {
                     Console.WriteLine("Not a WebSocket request");
@@ -136,7 +135,6 @@ namespace ProjectMessengerServer
                 }
 
                 var token = authHeader["Bearer ".Length..].Trim();
-                Console.WriteLine($"Token received: {token}");
 
                 var key = Encoding.UTF8.GetBytes(ctx.RequestServices.GetRequiredService<IConfiguration>()["Jwt:Key"]!);
                 var tokenHandler = new JwtSecurityTokenHandler();
@@ -154,8 +152,6 @@ namespace ProjectMessengerServer
                         IssuerSigningKey = new SymmetricSecurityKey(key)
                     }, out var validatedToken);
 
-                    Console.WriteLine("JWT validated successfully");
-
                     var subClaim = principal.Claims.FirstOrDefault(c =>
                         c.Type == JwtRegisteredClaimNames.Sub ||
                         c.Type == ClaimTypes.NameIdentifier
@@ -172,10 +168,7 @@ namespace ProjectMessengerServer
                         return;
                     }
 
-                    Console.WriteLine($"UserId from Sub claim: {userId}");
-
                     var socket = await ctx.WebSockets.AcceptWebSocketAsync();
-                    Console.WriteLine("WebSocket connection accepted");
 
                     var wsHandler = ctx.RequestServices.GetRequiredService<WsHandler>();
                     await wsHandler.HandleAsync(socket, userId);

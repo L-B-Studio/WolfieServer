@@ -258,5 +258,29 @@ namespace ProjectMessengerServer.Application.Services
                 HashRefreshToken = newRefreshToken
             };
         }
+
+        public async Task<Result> RevokeRefreshTokenAsync(string stringRefreshToken)
+        {
+            var refreshToken = await _dbContext.RefreshTokens
+                .FirstOrDefaultAsync(t => t.RefreshTokenHash == TokenHelper.HashToken(stringRefreshToken) && !t.Revoked);
+
+            if (refreshToken == null)
+            {
+                return Result.Failure("Refresh token not found or already revoked");
+            }
+
+            refreshToken.Revoked = true;
+
+            try
+            {
+                await _dbContext.SaveChangesAsync();
+                return Result.Success();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error during logout: {ex.Message}");
+                return Result.Failure("An error occurred during logout");
+            }
+        }
     }
 }

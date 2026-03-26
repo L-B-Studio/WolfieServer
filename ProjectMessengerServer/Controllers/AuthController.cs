@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ProjectMessengerServer.Application.DTO.Auth;
 using ProjectMessengerServer.Application.DTO.Password;
@@ -32,10 +33,6 @@ namespace ProjectMessengerServer.Controllers
             //data.TryGetValue("password", out string? password);
             //data.TryGetValue("birthday", out string? birthdayString);
             //data.TryGetValue("device_info", out string? deviceInfo);
-            if (req == null)
-            {
-                return BadRequest("Request is null");
-            }
             string name = req.Username;
             string email = req.Email;
             string password = req.Password;
@@ -90,10 +87,6 @@ namespace ProjectMessengerServer.Controllers
             string? deviceId = req.Device_id;
             string? deviceType = req.Device_type;
             string? placeAuthorization = req.Place_authorization;
-            if (req == null)
-            {
-                return BadRequest("Request is null");
-            }
             if (email == null || password == null)
             {
                 return BadRequest();
@@ -134,10 +127,6 @@ namespace ProjectMessengerServer.Controllers
 
             //data.TryGetValue("token_refresh", out string refreshTokenSession);
             //data.TryGetValue("device_info", out string? deviceInfo);
-            if (req == null)
-            {
-                return BadRequest("Request is null");
-            }
             string refreshTokenSession = req.Token_refresh;
             string? deviceId = req.Device_id;
             string? deviceType = req.Device_type;
@@ -174,10 +163,6 @@ namespace ProjectMessengerServer.Controllers
             //data.TryGetValue("device_info", out string? deviceInfo);
 
             //data.TryGetValue("email", out string email);
-            if (req == null)
-            {
-                return BadRequest("Request is null");
-            }
             string email = req.Email;
 
             if (string.IsNullOrWhiteSpace(email))
@@ -202,10 +187,6 @@ namespace ProjectMessengerServer.Controllers
             //data.TryGetValue("email", out string email);
             //data.TryGetValue("code", out string code);
             //data.TryGetValue("device_info", out string deviceInfo);
-            if (req == null)
-            {
-                return BadRequest("Request is null");
-            }
             string email = req.Email;
             string code = req.Code;
 
@@ -234,10 +215,6 @@ namespace ProjectMessengerServer.Controllers
 
             //data.TryGetValue("token_reset", out string token);
             //data.TryGetValue("password", out string newPassword);
-            if (req == null)
-            {
-                return BadRequest("Request is null");
-            }
 
             string token = req.Token_reset;
             string newPassword = req.Password;
@@ -252,8 +229,24 @@ namespace ProjectMessengerServer.Controllers
             }
 
             var result = await _passwordResetService.ChangePasswordAsync(req);
-            
-            if (!result.IsSuccess) 
+
+            if (!result.IsSuccess)
+            {
+                return BadRequest();
+            }
+
+            return NoContent();
+        }
+
+        [AllowAnonymous]
+        [HttpPost("logout")]
+        public async Task<IActionResult> Logout(LogoutRequest req)
+        {
+            string refreshTokenSession = req.Token_refresh;
+
+            var result = await _tokenService.RevokeRefreshTokenAsync(refreshTokenSession);
+
+            if (!result.IsSuccess)
             {
                 return BadRequest();
             }
